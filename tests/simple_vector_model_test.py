@@ -1,4 +1,4 @@
-from excel_helper.helper import ModelLoader
+from excel_helper.helper import ParameterLoader
 
 __author__ = 'schien'
 
@@ -23,6 +23,6 @@ if __name__ == '__main__':
     np.random.seed(123)
 
     # unittest.main()
-    data = ModelLoader('test.xlsx', size=2)
+    data = ParameterLoader('test.xlsx', size=2)
     a = data['a']
     print a
