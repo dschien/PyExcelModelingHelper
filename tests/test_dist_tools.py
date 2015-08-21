@@ -1,7 +1,8 @@
 from datetime import date, datetime
 from dateutil import relativedelta
 import numpy as np
-from excel_helper.helper import ParameterLoader, build_distribution, DataSeriesLoader, growth_coefficients
+from excel_helper.helper import ParameterLoader, build_distribution, DataSeriesLoader, growth_coefficients, \
+    MultiSourceLoader, MCDataset
 import pandas as pd
 
 __author__ = 'schien'
@@ -191,6 +192,23 @@ class TestCAGRCalculation(unittest.TestCase):
         assert np.all(a[0] == np.ones((samples, 1)))
         assert np.all(a[1] == np.ones((samples, 1)) * pow(1 + alpha, 1. / 12))
 
+    def test_negative_growth(self):
+        """
+        If start and end are one month apart, we expect an array of one row of ones of sample size for the ref month
+        and one row with CAGR applied
+
+        :return:
+        """
+        samples = 3
+        alpha = -0.1  # 100 percent p.a.
+        ref_date = date(2009, 1, 1)
+        start_date = date(2009, 1, 1)
+        end_date = date(2010, 1, 1)
+        a = growth_coefficients(start_date, end_date, ref_date, alpha, samples)
+        # print a
+        assert np.all(a[0] == np.ones((samples, 1)))
+        assert np.all(a[-1] == np.ones((samples, 1)) * 1 + alpha)
+
     def test_refdate_after_start(self):
         """
         If the ref date is greater than the start, we expect an array of one row of ones of sample size for the ref month
@@ -259,18 +277,83 @@ class TestDataFrameWithCAGRCalculation(unittest.TestCase):
 
         dfl = DataSeriesLoader.from_excel('test.xlsx', times, size=samples, sheet_index=0)
         res = dfl['a']
-        # print res
 
         assert res.loc[[datetime(2009, 1, 1)]][0] == 1
-        assert res.loc[[datetime(2009, 4, 1)]][0] == pow(1.1, 3. / 12)
+        assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
 
     def test_simple_CAGR_from_pandas(self):
         times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
 
         xls = pd.ExcelFile('test.xlsx')
         df = xls.parse('Sheet1')
-        ldr = DataSeriesLoader.from_dataframe(df, times)
+        ldr = DataSeriesLoader.from_dataframe(df, times, size=2)
         res = ldr['a']
+
+        assert res.loc[[datetime(2009, 1, 1)]][0] == 1
+        assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
+
+
+class TestMultiSourceLoader(unittest.TestCase):
+    def test_simple(self):
+        data = MultiSourceLoader()
+
+        data.add_source(ParameterLoader.from_excel('test.xlsx', size=1, sheet_index=0))
+        data.add_source(ParameterLoader.from_excel('test.xlsx', size=1, sheet_index=1))
+        a = data['a'][0]
+        assert a == 1.
+
+        z = data['z'][0]
+        assert z == 1.
+
+    def test_mixed_type_multisource(self):
+        data = MultiSourceLoader()
+
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+        # the sample axis our dataset
+        samples = 2
+
+        dfl = DataSeriesLoader.from_excel('test.xlsx', times, size=samples, sheet_index=0)
+
+        data.add_source(ParameterLoader.from_excel('test.xlsx', size=1, sheet_index=1))
+        res = dfl['a']
+
+        assert res.loc[[datetime(2009, 1, 1)]][0] == 1
+        assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
+
+        z = data['z'][0]
+        assert z == 1.
+
+    def test_scenario(self):
+        data = MultiSourceLoader()
+        data.add_source(ParameterLoader.from_excel('test.xlsx', size=1, sheet_index=0))
+
+        res = data['a'][0]
+
+        assert res == 1.
+
+        data.set_scenario('s1')
+        res = data['a'][0]
+
+        assert res == 2.
+
+        data.reset_scenario()
+        res = data['a'][0]
+
+        assert res == 1.
+
+
+class TestMCDataset(unittest.TestCase):
+    def test_simple(self):
+        data = MCDataset()
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+        # the sample axis our dataset
+        samples = 2
+        data.add_source(DataSeriesLoader.from_excel('test.xlsx', times, size=samples, sheet_index=0))
+        data.prepare('a')
+        res = data['a']
+        print res
+        # assert res.loc[[datetime(2009, 1, 1)]][0] == 1
+        # assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
 
 
 if __name__ == '__main__':

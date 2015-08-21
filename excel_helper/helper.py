@@ -15,6 +15,7 @@ from openpyxl.utils.datetime import from_excel
 import xlrd
 import pandas as pd
 import numpy as np
+from xray import Dataset, DataArray
 
 from dateutil import relativedelta as rdelta
 
@@ -90,7 +91,7 @@ class ParameterLoader(object):
     def generate_values(self, f, p, options, **kwargs):
         if not 'size' in kwargs:
             kwargs['size'] = self.size
-        ret = f(*p, **kwargs)
+        ret = f(*p, **kwargs).astype('f')
         return ret
 
     def get_val(self, name, **kwargs):
@@ -111,6 +112,10 @@ class ParameterLoader(object):
         ret = self.generate_values(f, p, options, **kwargs)
 
         return ret
+
+    def __contains__(self, item):
+
+        return item in self.cache or item in [tup[0] for tup in self.data[self.scenario]]
 
     def clear_cache(self):
         self.cache = defaultdict(dict)
@@ -160,7 +165,7 @@ def load_workbook(file, sheet_index=None, sheet_name=None):
     def transform(col_idx, col):
 
         if INV_TABLE_STRUCT[col_idx] in [START_DATE, END_DATE, REF_DATE]:
-            return [from_excel(i) if type(i) == float else i for i in col ]
+            return [from_excel(i) if type(i) == float else i for i in col]
         return col
 
     rows_es = zip(*[transform(col_idx, sh.col_values(col_idx)[1:]) for col_idx in range(0, len(HEADER_SEQ))])
@@ -241,7 +246,7 @@ class DataSeriesLoader(ParameterLoader):
         self.times = times
         iterables = [times, range(0, size)]
         self._multi_index = pd.MultiIndex.from_product(iterables, names=index_names)
-        assert type(times.freq) == pd.tseries.offsets.MonthBegin
+        assert type(times.freq) == pd.tseries.offsets.MonthBegin, 'Time index must have monthly frequency'
 
     def get_val(self, name, **kwargs):
         df = super(DataSeriesLoader, self).get_val(name, **kwargs)
@@ -263,10 +268,10 @@ class DataSeriesLoader(ParameterLoader):
 
             # @todo - fill to cover the entire time: define rules for filling first
             start_date = options[START_DATE]
-            # assert type(start_date) == type(self.times[0]), 'Different types: {} vs {}'.format(type(start_date), type(self.times[0]))
-            assert start_date == self.times[0].to_pydatetime()
+            assert start_date == self.times[
+                0].to_pydatetime(), 'Start date of time index and variable must be identical.'
             end_date = options[END_DATE]
-            assert end_date == self.times[-1].to_pydatetime()
+            assert end_date == self.times[-1].to_pydatetime(), 'End date of time index and variable must be identical.'
 
             a = growth_coefficients(start_date, end_date, ref_date, alpha, self.size)
 
@@ -275,3 +280,43 @@ class DataSeriesLoader(ParameterLoader):
         df = pd.DataFrame(values)
         df._metadata = [options]
         return df
+
+
+class MultiSourceLoader(object):
+    def __init__(self):
+        self._sources = []
+
+    def add_source(self, loader):
+        self._sources.append(loader)
+
+    def __getitem__(self, item):
+        for loader in self._sources:
+            if item in loader:
+                return loader[item]
+
+    def set_scenario(self, scenario):
+        for loader in self._sources:
+            loader.select_scenario(scenario)
+
+    def reset_scenario(self):
+        for loader in self._sources:
+            loader.unselect_scenario()
+
+
+class MCDataset(Dataset):
+    def __init__(self):
+        self.__ldr = MultiSourceLoader()
+        super(MCDataset, self).__init__()
+
+    def add_source(self, loader):
+        self.__ldr.add_source(loader)
+
+    def prepare(self, item):
+        series = self.__ldr[item]
+        if not series:
+            raise ValueError('%s not found' % item)
+        meta = series._metadata[0]
+        # take the abs because we don't want negative values
+        s = DataArray.from_series(series.abs())
+        s.attrs.update(meta)
+        self[item] = s
