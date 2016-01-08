@@ -32,8 +32,8 @@ class TestExcelTool(unittest.TestCase):
         row = data.get_row('a')
         # print row
         f, p, _ = build_distribution(row)
-        print p
-        print f(*p)
+        print(p)
+        print(f(*p))
 
     def test_cache(self):
         data = ParameterLoader.from_excel('test.xlsx', size=1, sheet_index=0)
@@ -148,15 +148,16 @@ class TestDataFrameLoader(unittest.TestCase):
         dfl = DataSeriesLoader.from_excel('test.xlsx', times, size=samples, sheet_index=0)
         res = dfl['a']
 
-        print res._metadata
+        print(res._metadata)
 
     def test_from_dataframe(self):
         times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
 
         xls = pd.ExcelFile('test.xlsx')
         df = xls.parse('Sheet1')
-        ldr = DataSeriesLoader.from_dataframe(df, times)
+        ldr = DataSeriesLoader.from_dataframe(df, times, size=3)
         res = ldr['a']
+        print (res)
 
 
 class TestCAGRCalculation(unittest.TestCase):
@@ -351,7 +352,7 @@ class TestMCDataset(unittest.TestCase):
         data.add_source(DataSeriesLoader.from_excel('test.xlsx', times, size=samples, sheet_index=0))
         data.prepare('a')
         res = data['a']
-        print res
+        print (res)
         # assert res.loc[[datetime(2009, 1, 1)]][0] == 1
         # assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
 

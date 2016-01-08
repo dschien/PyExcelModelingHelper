@@ -12,7 +12,7 @@ def read(*paths):
 
 setup(
     name='excel-modelling-helper',
-    version='0.1.8',
+    version='0.1.9',
     description='Use Excel to define your model parameters.',
     long_description=(read('README.rst') + '\n\n' +
                       read('CHANGES.rst')),

@@ -305,16 +305,14 @@ class MultiSourceLoader(object):
 
 class MCDataset(Dataset):
     def __init__(self):
-        self.__ldr = MultiSourceLoader()
+        self._ldr = MultiSourceLoader()
         super(MCDataset, self).__init__()
 
     def add_source(self, loader):
-        self.__ldr.add_source(loader)
+        self._ldr.add_source(loader)
 
     def prepare(self, item):
-        series = self.__ldr[item]
-        if not series:
-            raise ValueError('%s not found' % item)
+        series = self._ldr[item]
         meta = series._metadata[0]
         # take the abs because we don't want negative values
         s = DataArray.from_series(series.abs())
