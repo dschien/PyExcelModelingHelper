@@ -1,21 +1,32 @@
-# Doc
-[https://python-packaging-user-guide.readthedocs.org/en/latest/distributing.html#uploading-your-project-to-pypi]
+# Example
+Given an excel file with rows similar to the below
 
-# Build
+| variable        | scenario | module                                      | distribution | param 1          | param 2 | param 3 | unit | start date | end date   | CAGR | ref date   | label      | comment | source |
+|-----------------|----------|---------------------------------------------|--------------|------------------|---------|---------|------|------------|------------|------|------------|------------|---------|--------|
+| a               |          | numpy.random                                | choice       | 1                |         |         | kg   | 01/01/2009 | 01/04/2009 | 0.10 | 01/01/2009 | test var 1 |         |        |
+| b               |          | numpy.random                                | uniform      | 2                | 4       |         | -    |            |            |      |            | label      |         |        |
+| c               |          | numpy.random                                | triangular   | 3                | 6       | 10      | -    |            |            |      |            | label      |         |        |
+| d               |          | bottom_up_comparision.sampling_core_routers | Distribution | core_routers.csv |         |         | J/Gb |            |            |      |            | label      |         |        |
+|                 |          |                                             |              |                  |         |         |      |            |            |      |            |            |         |        |
+| a               | s1       | numpy.random                                | choice       | 2                |         |         |      |            |            |      |            | test var 1 |         |        |
+| multiple choice |          | numpy.random                                | choice       | 1,2,3            |         |         | kg   | 01/01/2007 | 01/01/2009 |      |            | test var 1 |         |        |
 
-`python setup.py sdist`
 
-# Upload
-It might be necessary to first delete old packages in 'dist' folder
-`twine upload dist/*`
+You can run python/ numpy code that references these variables and generates random distributions.
 
-# Local install
+For example, the following will initialise a variable `c` with a vector of size 2 with random values
+ from a triangular distribution.
 
-## Build wheel
-`python setup.py bdist_wheel -d dist`
+```
+np.random.seed(123)
 
-## Pip build local install wheel
-`pip wheel -e dist/excel_modelling_helper-0.1.7-py2-none-any.whl`
+data = ParameterLoader.from_excel('test.xlsx', size=2, sheet_index=0)
+c = data['c']
+>>> [ 7.08471918  5.45131111]
+```
 
-## Pip install local wheel
-`pip install wheelhouse/excel_modelling_helper-0.1.7-py2-none-any.whl`
+Other types of distributions include `choice` and `normal`. However you can specify any distribution from
+numpy that takes up to three parameters to init.
+
+You can also specify a .csv file with samples and an empiricial distribution function is generated
+and variable values will be sampled from that.
