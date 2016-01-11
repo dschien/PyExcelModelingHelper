@@ -46,6 +46,20 @@ TABLE_STRUCT = {k: i for i, k in enumerate(HEADER_SEQ)}
 INV_TABLE_STRUCT = {v: k for k, v in TABLE_STRUCT.items()}
 DEFAULT_SCENARIO = 'def'
 
+from functools import total_ordering
+
+
+@total_ordering
+class MinType(object):
+    def __le__(self, other):
+        return True
+
+    def __eq__(self, other):
+        return (self is other)
+
+
+Min = MinType()
+
 
 class ParameterLoader(object):
     """
@@ -63,7 +77,8 @@ class ParameterLoader(object):
     def __init__(self, rows, size):
 
         self.data = defaultdict(list)
-        sorted_wb = sorted(rows, key=operator.itemgetter(1))
+
+        sorted_wb = sorted(rows, key=lambda x: Min if x[1] is None else x[1])
         for key, group in itertools.groupby(sorted_wb, operator.itemgetter(1)):
 
             # scenario = row[1] if row[1] else DEFAULT_SCENARIO
