@@ -320,6 +320,7 @@ class MultiSourceLoader(object):
 
 class MCDataset(Dataset):
     def __init__(self):
+        self.known_items = []
         self._ldr = MultiSourceLoader()
         super(MCDataset, self).__init__()
 
@@ -333,3 +334,12 @@ class MCDataset(Dataset):
         s = DataArray.from_series(series.abs())
         s.attrs.update(meta)
         self[item] = s
+        self.known_items.append(item)
+        return s
+
+    def __getitem__(self, item):
+        try:
+            return super(MCDataset, self).__getitem__(item)
+        except Exception as inst:
+            self.prepare(item)
+            return super(MCDataset, self).__getitem__(item)

@@ -157,7 +157,7 @@ class TestDataFrameLoader(unittest.TestCase):
         df = xls.parse('Sheet1')
         ldr = DataSeriesLoader.from_dataframe(df, times, size=3)
         res = ldr['a']
-        print (res)
+        print(res)
 
 
 class TestCAGRCalculation(unittest.TestCase):
@@ -350,9 +350,11 @@ class TestMCDataset(unittest.TestCase):
         # the sample axis our dataset
         samples = 2
         data.add_source(DataSeriesLoader.from_excel('test.xlsx', times, size=samples, sheet_index=0))
-        data.prepare('a')
+        # data.prepare('a')
         res = data['a']
-        print (res)
+        print(res)
+        res = data.b
+        print(res)
         # assert res.loc[[datetime(2009, 1, 1)]][0] == 1
         # assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
 
