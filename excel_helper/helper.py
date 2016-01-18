@@ -346,6 +346,10 @@ class ExcelLoaderMixin(object):
     def __hash__(self):
         return hash(self.__key())
 
+    def __repr__(self):
+        return "%s (file: %s, sheet name: %s, sheet index: %s)" % (
+            self.__class__, self.file, self.sheet_name, self.sheet_index)
+
 
 class ExcelLoaderDataSource(ExcelLoaderMixin, LoaderDataSource):
     def __init__(self, file, size=1, sheet_index=None, sheet_name=None):
@@ -441,6 +445,7 @@ class MultiSourceLoader(object):
 
     def reload_sources(self):
         for source, loader in self._sources.items():
+            logger.info('Reloading source %s' % source)
             self._sources[source] = source.get_loader()
 
 
@@ -456,7 +461,7 @@ class MCDataset(Dataset):
         super(MCDataset, self).__init__()
 
     def add_source(self, loader):
-        logger.info('Adding source loader')
+        logger.info('Adding source loader %s' % loader)
         assert isinstance(loader, LoaderDataSource)
         self._ldr.add_source(loader)
 

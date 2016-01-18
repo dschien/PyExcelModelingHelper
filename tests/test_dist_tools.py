@@ -386,7 +386,6 @@ class TestMultiSourceLoader(unittest.TestCase):
         assert res == 1.
 
 
-
 class TestMCDataset(unittest.TestCase):
     def test_simple(self):
         data = MCDataset()
@@ -401,6 +400,12 @@ class TestMCDataset(unittest.TestCase):
         print(res)
         # assert res.loc[[datetime(2009, 1, 1)]][0] == 1
         # assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
+
+
+class TestExcelLoaderMixin(unittest.TestCase):
+    def test_repr(self):
+        source = ExcelLoaderDataSource('test.xlsx', size=1, sheet_index=0)
+        print(source)
 
 
 if __name__ == '__main__':
