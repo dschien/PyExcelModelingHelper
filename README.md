@@ -65,6 +65,46 @@ It is possible to define a time frame for distributions and have sample values c
     assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
 ```
 
+## Reload
+Reloading data sources is useful when underlying excel files change. 
+```
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')        
+        samples = 2
+
+        data = MultiSourceLoader()
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
+
+        res = data['a'][0]
+        assert res == 1.
+
+        wb = load_workbook(filename='test.xlsx')
+        ws = wb.worksheets[0]
+        ws['E2'] = 4.
+        wb.save(filename='test.xlsx')
+
+        data.reload_sources()
+
+        res = data['a'][0]
+        assert res == 4.
+
+        wb = load_workbook(filename='test.xlsx')
+        ws = wb.worksheets[0]
+        ws['E2'] = 1.
+        wb.save(filename='test.xlsx')
+
+        data.reload_sources()
+
+        data.set_scenario('s1')
+        res = data['a'][0]
+
+        assert res == 2.
+
+        data.reset_scenario()
+        res = data['a'][0]
+
+        assert res == 1.
+```
+
 ## Metadata
 The contents of the rows is also contained in the metadata
 ```

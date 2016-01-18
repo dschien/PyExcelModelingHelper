@@ -61,7 +61,11 @@ class MinType(object):
 Min = MinType()
 
 
-class ParameterLoader(object):
+class DataLoader(object):
+    pass
+
+
+class ParameterLoader(DataLoader):
     """
     A cache is used for the distribution configuration. However, every time get_val or __getitem__ is called,
     a new vector of random numbers is created.
@@ -297,25 +301,123 @@ class DataSeriesLoader(ParameterLoader):
         return df
 
 
+from abc import ABCMeta, abstractmethod
+
+
+class LoaderDataSource(object):
+    __metaclass__ = ABCMeta
+
+    def __init__(self, size):
+        self.size = size
+
+    @abstractmethod
+    def get_loader(self) -> DataLoader:
+        pass
+
+
+class ExcelLoaderDataSource(LoaderDataSource):
+    def __init__(self, file, size=1, sheet_index=None, sheet_name=None):
+        super().__init__(size)
+
+        self.sheet_name = sheet_name
+        self.sheet_index = sheet_index
+        self.file = file
+
+    def __key(self):
+        return (self.file, self.sheet_name, self.sheet_index)
+
+    def __eq__(self, y):
+        return self.__key() == y.__key()
+
+    def __hash__(self):
+        return hash(self.__key())
+
+    def get_loader(self) -> ParameterLoader:
+        return ParameterLoader.from_excel(self.file, self.size, self.sheet_index, self.sheet_name)
+
+
+class DataSeriesLoaderDataSource(LoaderDataSource):
+    __metaclass__ = ABCMeta
+
+    def __init__(self, times, size=1):
+        super().__init__(size)
+        self.times = times
+
+    @abstractmethod
+    def get_loader(self) -> DataSeriesLoader:
+        return super().get_loader()
+
+
+class ExcelSeriesLoaderDataSource(DataSeriesLoaderDataSource):
+    def __init__(self, file, times, size=1, sheet_index=None, sheet_name=None, index_names=None):
+        super().__init__(times, size)
+        if index_names is None:
+            index_names = ['time', 'samples']
+        self.index_names = index_names
+        self.sheet_name = sheet_name
+        self.sheet_index = sheet_index
+        self.file = file
+
+    def __key(self):
+        return (self.file, self.sheet_name, self.sheet_index)
+
+    def __eq__(self, y):
+        return self.__key() == y.__key()
+
+    def __hash__(self):
+        return hash(self.__key())
+
+    def get_loader(self) -> DataSeriesLoader:
+        return DataSeriesLoader.from_excel(self.file, self.times, self.size, self.sheet_index, self.sheet_name,
+                                           self.index_names)
+
+
+class DataFrameLoaderDataSource(DataSeriesLoaderDataSource):
+    def __init__(self, name, df, times, size=1, index_names=None):
+        super().__init__(times, size)
+        if index_names is None:
+            index_names = ['time', 'samples']
+        self.name = name
+        self.index_names = index_names
+        self.df = df
+
+    def __key(self):
+        return (self.name)
+
+    def __eq__(self, y):
+        return self.__key() == y.__key()
+
+    def __hash__(self):
+        return hash(self.__key())
+
+    def get_loader(self) -> DataSeriesLoader:
+        return DataSeriesLoader.from_dataframe(self.df, self.times, self.size, self.index_names)
+
+
 class MultiSourceLoader(object):
     def __init__(self):
-        self._sources = []
+        self._sources = {}
 
-    def add_source(self, loader):
-        self._sources.append(loader)
+    def add_source(self, source):
+        loader = source.get_loader()
+        self._sources[source] = loader
 
     def __getitem__(self, item):
-        for loader in self._sources:
+        for loader in self._sources.values():
             if item in loader:
                 return loader[item]
 
     def set_scenario(self, scenario):
-        for loader in self._sources:
+        for loader in self._sources.values():
             loader.select_scenario(scenario)
 
     def reset_scenario(self):
-        for loader in self._sources:
+        for loader in self._sources.values():
             loader.unselect_scenario()
+
+    def reload_sources(self):
+        for source, loader in self._sources.items():
+            self._sources[source] = source.get_loader()
 
 
 class MCDataset(Dataset):
@@ -325,7 +427,11 @@ class MCDataset(Dataset):
         super(MCDataset, self).__init__()
 
     def add_source(self, loader):
+        assert isinstance(loader, LoaderDataSource)
         self._ldr.add_source(loader)
+
+    def reload_sources(self):
+        self._ldr.reload_sources()
 
     def prepare(self, item):
         series = self._ldr[item]

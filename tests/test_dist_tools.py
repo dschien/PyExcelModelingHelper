@@ -1,8 +1,10 @@
 from datetime import date, datetime
 from dateutil import relativedelta
 import numpy as np
+from openpyxl import load_workbook
+
 from excel_helper.helper import ParameterLoader, build_distribution, DataSeriesLoader, growth_coefficients, \
-    MultiSourceLoader, MCDataset
+    MultiSourceLoader, MCDataset, ExcelSeriesLoaderDataSource, ExcelLoaderDataSource
 import pandas as pd
 
 __author__ = 'schien'
@@ -161,7 +163,7 @@ class TestDataFrameLoader(unittest.TestCase):
 
 
 class TestCAGRCalculation(unittest.TestCase):
-    def test_one_month(self):
+    def test_identitical_month(self):
         """
         If start and end are identical, we expect an array of one row of ones of sample size
 
@@ -176,7 +178,7 @@ class TestCAGRCalculation(unittest.TestCase):
         a = growth_coefficients(start_date, end_date, ref_date, alpha, samples)
         assert np.all(a == np.ones((samples, 1)))
 
-    def test_two_months(self):
+    def test_one_year(self):
         """
         If start and end are one month apart, we expect an array of one row of ones of sample size for the ref month
         and one row with CAGR applied
@@ -190,6 +192,7 @@ class TestCAGRCalculation(unittest.TestCase):
         end_date = date(2010, 1, 1)
 
         a = growth_coefficients(start_date, end_date, ref_date, alpha, samples)
+        print(a)
         assert np.all(a[0] == np.ones((samples, 1)))
         assert np.all(a[1] == np.ones((samples, 1)) * pow(1 + alpha, 1. / 12))
 
@@ -206,7 +209,7 @@ class TestCAGRCalculation(unittest.TestCase):
         start_date = date(2009, 1, 1)
         end_date = date(2010, 1, 1)
         a = growth_coefficients(start_date, end_date, ref_date, alpha, samples)
-        # print a
+        print(a)
         assert np.all(a[0] == np.ones((samples, 1)))
         assert np.all(a[-1] == np.ones((samples, 1)) * 1 + alpha)
 
@@ -298,8 +301,8 @@ class TestMultiSourceLoader(unittest.TestCase):
     def test_simple(self):
         data = MultiSourceLoader()
 
-        data.add_source(ParameterLoader.from_excel('test.xlsx', size=1, sheet_index=0))
-        data.add_source(ParameterLoader.from_excel('test.xlsx', size=1, sheet_index=1))
+        data.add_source(ExcelLoaderDataSource('test.xlsx', size=1, sheet_index=0))
+        data.add_source(ExcelLoaderDataSource('test.xlsx', size=1, sheet_index=1))
         a = data['a'][0]
         assert a == 1.
 
@@ -313,20 +316,22 @@ class TestMultiSourceLoader(unittest.TestCase):
         # the sample axis our dataset
         samples = 2
 
-        dfl = DataSeriesLoader.from_excel('test.xlsx', times, size=samples, sheet_index=0)
-
-        data.add_source(ParameterLoader.from_excel('test.xlsx', size=1, sheet_index=1))
-        res = dfl['a']
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
+        res = data['a']
 
         assert res.loc[[datetime(2009, 1, 1)]][0] == 1
         assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
-
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=1))
         z = data['z'][0]
         assert z == 1.
 
     def test_scenario(self):
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+        # the sample axis our dataset
+        samples = 2
+
         data = MultiSourceLoader()
-        data.add_source(ParameterLoader.from_excel('test.xlsx', size=1, sheet_index=0))
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
 
         res = data['a'][0]
 
@@ -342,6 +347,45 @@ class TestMultiSourceLoader(unittest.TestCase):
 
         assert res == 1.
 
+    def test_reload(self):
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+        # the sample axis our dataset
+        samples = 2
+
+        data = MultiSourceLoader()
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
+
+        res = data['a'][0]
+        assert res == 1.
+
+        wb = load_workbook(filename='test.xlsx')
+        ws = wb.worksheets[0]
+        ws['E2'] = 4.
+        wb.save(filename='test.xlsx')
+
+        data.reload_sources()
+
+        res = data['a'][0]
+        assert res == 4.
+
+        wb = load_workbook(filename='test.xlsx')
+        ws = wb.worksheets[0]
+        ws['E2'] = 1.
+        wb.save(filename='test.xlsx')
+
+        data.reload_sources()
+
+        data.set_scenario('s1')
+        res = data['a'][0]
+
+        assert res == 2.
+
+        data.reset_scenario()
+        res = data['a'][0]
+
+        assert res == 1.
+
+
 
 class TestMCDataset(unittest.TestCase):
     def test_simple(self):
@@ -349,7 +393,7 @@ class TestMCDataset(unittest.TestCase):
         times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
         # the sample axis our dataset
         samples = 2
-        data.add_source(DataSeriesLoader.from_excel('test.xlsx', times, size=samples, sheet_index=0))
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
         # data.prepare('a')
         res = data['a']
         print(res)
