@@ -6,6 +6,7 @@ Build python models using parameter values from Excel.
 | c_ON     | numpy.random  | triangular | 0.25    | 0.75    | 1       | -    | number WDM terminals metro |
 
 """
+import logging
 from collections import defaultdict
 
 import importlib
@@ -18,6 +19,8 @@ import numpy as np
 from xray import Dataset, DataArray
 
 from dateutil import relativedelta as rdelta
+
+logger = logging.getLogger(__name__)
 
 __author__ = 'schien'
 
@@ -51,6 +54,10 @@ from functools import total_ordering
 
 @total_ordering
 class MinType(object):
+    """
+    Needed to make None orderable in python 3.
+    """
+
     def __le__(self, other):
         return True
 
@@ -62,11 +69,17 @@ Min = MinType()
 
 
 class DataLoader(object):
+    """
+    Type hierarchy root.
+    """
     pass
 
 
 class ParameterLoader(DataLoader):
     """
+    Load parameters from excel or a tabular source.
+    Init variables from distribution values.
+
     A cache is used for the distribution configuration. However, every time get_val or __getitem__ is called,
     a new vector of random numbers is created.
     """
@@ -249,6 +262,10 @@ def growth_coefficients(start_date, end_date, ref_date, alpha, samples):
 
 
 class DataSeriesLoader(ParameterLoader):
+    """
+    A dataloader that supports timelines.
+    """
+
     @classmethod
     def from_excel(cls, file, times, size=1, sheet_index=None, sheet_name=None, index_names=['time', 'samples']):
         """Initialize from an excel file"""
@@ -305,6 +322,10 @@ from abc import ABCMeta, abstractmethod
 
 
 class LoaderDataSource(object):
+    """
+    A handle to datasources such that we can reload them when the underlying datasource on file has changed.
+
+    """
     __metaclass__ = ABCMeta
 
     def __init__(self, size):
@@ -315,14 +336,7 @@ class LoaderDataSource(object):
         pass
 
 
-class ExcelLoaderDataSource(LoaderDataSource):
-    def __init__(self, file, size=1, sheet_index=None, sheet_name=None):
-        super(ExcelLoaderDataSource, self).__init__(size)
-
-        self.sheet_name = sheet_name
-        self.sheet_index = sheet_index
-        self.file = file
-
+class ExcelLoaderMixin(object):
     def __key(self):
         return (self.file, self.sheet_name, self.sheet_index)
 
@@ -331,6 +345,15 @@ class ExcelLoaderDataSource(LoaderDataSource):
 
     def __hash__(self):
         return hash(self.__key())
+
+
+class ExcelLoaderDataSource(ExcelLoaderMixin, LoaderDataSource):
+    def __init__(self, file, size=1, sheet_index=None, sheet_name=None):
+        super(ExcelLoaderDataSource, self).__init__(size)
+
+        self.sheet_name = sheet_name
+        self.sheet_index = sheet_index
+        self.file = file
 
     def get_loader(self):
         return ParameterLoader.from_excel(self.file, self.size, self.sheet_index, self.sheet_name)
@@ -348,7 +371,7 @@ class DataSeriesLoaderDataSource(LoaderDataSource):
         return super(DataSeriesLoaderDataSource, self).get_loader()
 
 
-class ExcelSeriesLoaderDataSource(DataSeriesLoaderDataSource):
+class ExcelSeriesLoaderDataSource(ExcelLoaderMixin, DataSeriesLoaderDataSource):
     def __init__(self, file, times, size=1, sheet_index=None, sheet_name=None, index_names=None):
         super(ExcelSeriesLoaderDataSource, self).__init__(times, size)
         if index_names is None:
@@ -358,21 +381,18 @@ class ExcelSeriesLoaderDataSource(DataSeriesLoaderDataSource):
         self.sheet_index = sheet_index
         self.file = file
 
-    def __key(self):
-        return (self.file, self.sheet_name, self.sheet_index)
-
-    def __eq__(self, y):
-        return self.__key() == y.__key()
-
-    def __hash__(self):
-        return hash(self.__key())
-
     def get_loader(self):
         return DataSeriesLoader.from_excel(self.file, self.times, self.size, self.sheet_index, self.sheet_name,
                                            self.index_names)
 
 
 class DataFrameLoaderDataSource(DataSeriesLoaderDataSource):
+    """
+    Needed to comply with the interface.
+    Does not actually do much.
+
+    """
+
     def __init__(self, name, df, times, size=1, index_names=None):
         super(DataFrameLoaderDataSource, self).__init__(times, size)
         if index_names is None:
@@ -395,6 +415,10 @@ class DataFrameLoaderDataSource(DataSeriesLoaderDataSource):
 
 
 class MultiSourceLoader(object):
+    """
+    Bundles sources loaders.
+    """
+
     def __init__(self):
         self._sources = {}
 
@@ -421,16 +445,23 @@ class MultiSourceLoader(object):
 
 
 class MCDataset(Dataset):
+    """
+    Wraps an xray.Dataset such that variables that are not found in the dataset are first looked up in the
+    SourceLoader dict.
+    """
+
     def __init__(self):
         self.known_items = []
         self._ldr = MultiSourceLoader()
         super(MCDataset, self).__init__()
 
     def add_source(self, loader):
+        logger.info('Adding source loader')
         assert isinstance(loader, LoaderDataSource)
         self._ldr.add_source(loader)
 
     def reload_sources(self):
+        logger.info('Reloading sources')
         self._ldr.reload_sources()
 
     def prepare(self, item):
