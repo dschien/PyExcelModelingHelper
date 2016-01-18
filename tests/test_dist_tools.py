@@ -1,3 +1,4 @@
+import logging
 from datetime import date, datetime
 from dateutil import relativedelta
 import numpy as np
@@ -404,6 +405,8 @@ class TestMCDataset(unittest.TestCase):
 
 class TestExcelLoaderMixin(unittest.TestCase):
     def test_repr(self):
+        logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s', level=logging.INFO)
+
         source = ExcelLoaderDataSource('test.xlsx', size=1, sheet_index=0)
         print(source)
 
