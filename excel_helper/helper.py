@@ -311,13 +311,13 @@ class LoaderDataSource(object):
         self.size = size
 
     @abstractmethod
-    def get_loader(self) -> DataLoader:
+    def get_loader(self):
         pass
 
 
 class ExcelLoaderDataSource(LoaderDataSource):
     def __init__(self, file, size=1, sheet_index=None, sheet_name=None):
-        super().__init__(size)
+        super(ExcelLoaderDataSource, self).__init__(size)
 
         self.sheet_name = sheet_name
         self.sheet_index = sheet_index
@@ -332,7 +332,7 @@ class ExcelLoaderDataSource(LoaderDataSource):
     def __hash__(self):
         return hash(self.__key())
 
-    def get_loader(self) -> ParameterLoader:
+    def get_loader(self):
         return ParameterLoader.from_excel(self.file, self.size, self.sheet_index, self.sheet_name)
 
 
@@ -340,17 +340,17 @@ class DataSeriesLoaderDataSource(LoaderDataSource):
     __metaclass__ = ABCMeta
 
     def __init__(self, times, size=1):
-        super().__init__(size)
+        super(DataSeriesLoaderDataSource, self).__init__(size)
         self.times = times
 
     @abstractmethod
-    def get_loader(self) -> DataSeriesLoader:
-        return super().get_loader()
+    def get_loader(self):
+        return super(DataSeriesLoaderDataSource, self).get_loader()
 
 
 class ExcelSeriesLoaderDataSource(DataSeriesLoaderDataSource):
     def __init__(self, file, times, size=1, sheet_index=None, sheet_name=None, index_names=None):
-        super().__init__(times, size)
+        super(ExcelSeriesLoaderDataSource, self).__init__(times, size)
         if index_names is None:
             index_names = ['time', 'samples']
         self.index_names = index_names
@@ -367,14 +367,14 @@ class ExcelSeriesLoaderDataSource(DataSeriesLoaderDataSource):
     def __hash__(self):
         return hash(self.__key())
 
-    def get_loader(self) -> DataSeriesLoader:
+    def get_loader(self):
         return DataSeriesLoader.from_excel(self.file, self.times, self.size, self.sheet_index, self.sheet_name,
                                            self.index_names)
 
 
 class DataFrameLoaderDataSource(DataSeriesLoaderDataSource):
     def __init__(self, name, df, times, size=1, index_names=None):
-        super().__init__(times, size)
+        super(DataFrameLoaderDataSource, self).__init__(times, size)
         if index_names is None:
             index_names = ['time', 'samples']
         self.name = name
@@ -390,7 +390,7 @@ class DataFrameLoaderDataSource(DataSeriesLoaderDataSource):
     def __hash__(self):
         return hash(self.__key())
 
-    def get_loader(self) -> DataSeriesLoader:
+    def get_loader(self):
         return DataSeriesLoader.from_dataframe(self.df, self.times, self.size, self.index_names)
 
 
