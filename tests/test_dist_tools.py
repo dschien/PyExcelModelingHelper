@@ -197,6 +197,24 @@ class TestCAGRCalculation(unittest.TestCase):
         assert np.all(a[0] == np.ones((samples, 1)))
         assert np.all(a[1] == np.ones((samples, 1)) * pow(1 + alpha, 1. / 12))
 
+    def test_one_year(self):
+        """
+        If start and end are one month apart, we expect an array of one row of ones of sample size for the ref month
+        and one row with CAGR applied
+
+        :return:
+        """
+        samples = 3
+        alpha = 0.5  # 100 percent p.a.
+        ref_date = date(2009, 1, 1)
+        start_date = date(2009, 1, 1)
+        end_date = date(2010, 1, 1)
+
+        a = growth_coefficients(start_date, end_date, ref_date, alpha, samples)
+        print(a)
+        assert np.all(a[0] == np.ones((samples, 1)))
+        assert np.all(a[1] == np.ones((samples, 1)) * pow(1 + alpha, 1. / 12))
+
     def test_negative_growth(self):
         """
         If start and end are one month apart, we expect an array of one row of ones of sample size for the ref month
@@ -296,6 +314,23 @@ class TestDataFrameWithCAGRCalculation(unittest.TestCase):
 
         assert res.loc[[datetime(2009, 1, 1)]][0] == 1
         assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
+
+    def test_simple_CAGR_mm(self):
+        """
+        Basic test case, applying CAGR to a Pandas Dataframe.
+
+        :return:
+        """
+        # the time axis of our dataset
+        times = pd.date_range('2015-01-01', '2016-01-01', freq='MS')
+        # the sample axis our dataset
+        samples = 2
+
+        dfl = DataSeriesLoader.from_excel('test.xlsx', times, size=samples, sheet_index=0)
+        res = dfl['mm']
+        print(res)
+        # assert res.loc[[datetime(2009, 1, 1)]][0] == 1
+        # assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
 
 
 class TestMultiSourceLoader(unittest.TestCase):
@@ -403,9 +438,12 @@ class TestMCDataset(unittest.TestCase):
         # assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
 
 
+
+
 class TestExcelLoaderMixin(unittest.TestCase):
     def test_repr(self):
-        logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s', level=logging.INFO)
+        logging.basicConfig(level=logging.INFO)
+        # logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s', level=logging.INFO)
 
         source = ExcelLoaderDataSource('test.xlsx', size=1, sheet_index=0)
         print(source)
