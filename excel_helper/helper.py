@@ -20,6 +20,8 @@ from xray import Dataset, DataArray
 
 from dateutil import relativedelta as rdelta
 
+SINGLE_VAR = 'single_var'
+
 logger = logging.getLogger(__name__)
 
 __author__ = 'schien'
@@ -39,8 +41,6 @@ CAGR = 'CAGR'
 REF_DATE = 'ref date'
 SOURCE = 'source'
 UNIT = 'unit'
-
-# HEADER_SEQ = [NAME, SCENARIO, MODULE, DISTRIBUTION, PARAM_A, PARAM_B, PARAM_C, UNIT, START_DATE, END_DATE, LABEL, COMMENT, SOURCE]
 
 HEADER_SEQ = [NAME, SCENARIO, MODULE, DISTRIBUTION, PARAM_A, PARAM_B, PARAM_C, UNIT, START_DATE, END_DATE, CAGR,
               REF_DATE, LABEL, COMMENT, SOURCE]
@@ -68,14 +68,7 @@ class MinType(object):
 Min = MinType()
 
 
-class DataLoader(object):
-    """
-    Type hierarchy root.
-    """
-    pass
-
-
-class ParameterLoader(DataLoader):
+class ParameterLoader(object):
     """
     Load parameters from excel or a tabular source.
     Init variables from distribution values.
@@ -85,14 +78,14 @@ class ParameterLoader(DataLoader):
     """
 
     @classmethod
-    def from_excel(cls, file, size=1, sheet_index=None, sheet_name=None):
+    def from_excel(cls, file, size=1, sheet_index=None, sheet_name=None, **kwargs):
         """Initialize from an excel file"""
         rows = load_workbook(file, sheet_index, sheet_name)
 
-        return cls(rows, size)
+        return cls(rows, size, **kwargs)
 
-    def __init__(self, rows, size):
-
+    def __init__(self, rows, size, **kwargs):
+        self.kwargs = kwargs
         self.data = defaultdict(list)
 
         sorted_wb = sorted(rows, key=lambda x: Min if x[1] is None else x[1])
@@ -120,16 +113,36 @@ class ParameterLoader(DataLoader):
         i = variables.index(name)
         return self.data[scenario][i]
 
-    def generate_values(self, f, p, options, **kwargs):
-        if not 'size' in kwargs:
-            kwargs['size'] = self.size
-        ret = f(*p, **kwargs).astype('f')
+    def generate_values(self, f, p, options, size=None, name=None):
+        """
+        Instantiates the random variable.
+
+        :param size:
+        :param f:
+        :param p:
+        :param options:
+        :param kwargs:
+        :return:
+        """
+        if not size:  # can be overridden case by case
+            size = self.size
+
+        # generate the distribution
+        ret = f(*p, size=size).astype('f')
+
+        if SINGLE_VAR in self.kwargs and not self.kwargs[SINGLE_VAR] == name:
+            # reduce
+            return np.full(size, ret.mean())
+
         return ret
 
-    def get_val(self, name, **kwargs):
+    def get_val(self, name):
         """
-        Apply function to arguments from excel table
-         args: optional additonal args
+        Generate a random variable as is defined in the source
+        If a variable definition for scenario exists, use that.
+
+
+        args: optional additonal args
         If no args are given, applies default size from constructor
         """
         scenario = self.scenario
@@ -138,10 +151,10 @@ class ParameterLoader(DataLoader):
             f, p, options = self.cache[scenario][name]
         else:
             row = self.get_row(name)
-            f, p, options = build_distribution(row)
+            f, p, options = get_random_variable_definition(row)
             self.cache[scenario][name] = (f, p, options)
 
-        ret = self.generate_values(f, p, options, **kwargs)
+        ret = self.generate_values(f, p, options, name=name)
 
         return ret
 
@@ -204,7 +217,7 @@ def load_workbook(file, sheet_index=None, sheet_name=None):
     return rows_es
 
 
-def build_distribution(row):
+def get_random_variable_definition(row):
     """
 
     :param row:
@@ -267,25 +280,41 @@ class DataSeriesLoader(ParameterLoader):
     """
 
     @classmethod
-    def from_excel(cls, file, times, size=1, sheet_index=None, sheet_name=None, index_names=['time', 'samples']):
-        """Initialize from an excel file"""
+    def from_excel(cls, file, times, size=1, sheet_index=None, sheet_name=None, index_names=['time', 'samples'],
+                   **kwargs):
+        """Initialize from an excel file
+        :param file:
+        :param times:
+        :param size:
+        :param sheet_index:
+        :param sheet_name:
+        :param index_names:
+        :param kwargs:
+        :return:
+        """
         rows = load_workbook(file, sheet_index, sheet_name)
-        return cls(rows, times, index_names, size)
+        return cls(rows, times, index_names, size, **kwargs)
 
     @classmethod
-    def from_dataframe(cls, df, times, size=1, index_names=['time', 'samples']):
-        return cls(df.where((pd.notnull(df)), None).values, times, index_names, size)
+    def from_dataframe(cls, df, times, size=1, index_names=['time', 'samples'], **kwargs):
+        return cls(df.where((pd.notnull(df)), None).values, times, index_names, size, **kwargs)
 
-    def __init__(self, rows, times, index_names, size):
+    def __init__(self, rows, times, index_names, size, **kwargs):
         super(DataSeriesLoader, self).__init__(rows, size)
-
+        self.kwargs = kwargs
         self.times = times
         iterables = [times, range(0, size)]
         self._multi_index = pd.MultiIndex.from_product(iterables, names=index_names)
         assert type(times.freq) == pd.tseries.offsets.MonthBegin, 'Time index must have monthly frequency'
 
-    def get_val(self, name, **kwargs):
-        df = super(DataSeriesLoader, self).get_val(name, **kwargs)
+    def get_val(self, name):
+        """
+        Wraps the value in a dataframe
+        :param name:
+        :param kwargs:
+        :return:
+        """
+        df = super(DataSeriesLoader, self).get_val(name)
         df.set_index(self._multi_index, inplace=True)
         df.columns = [name]
         # @todo this is a hack to return a series with index as I don't know how to set an index and rename a series
@@ -293,25 +322,40 @@ class DataSeriesLoader(ParameterLoader):
         data_series._metadata = df._metadata
         return data_series
 
-    def generate_values(self, f, p, options, **args):
+    def generate_values(self, f, p, options, size=None, name=None):
+        """
+        Instantiate a random variable and apply annual growth factors.
+
+
+        :param name:
+        :param size:
+        :param f:
+        :param p:
+        :param options:
+
+        :return:
+        """
         values = super(DataSeriesLoader, self).generate_values(f, p, options, size=(len(self.times) * self.size,),
-                                                               **args)
-
-        # apply CAGR if present
-        if CAGR in options.keys() and REF_DATE in options.keys():
+                                                               name=name)
+        alpha = 0
+        # apply CAGR if present - or if we are in 'single_var mode' then, this needs to be the single_var
+        if CAGR in options.keys() and REF_DATE in options.keys() and \
+                (SINGLE_VAR not in self.kwargs or self.kwargs[SINGLE_VAR] == name):
             alpha = options[CAGR]
-            ref_date = options[REF_DATE]
 
-            # @todo - fill to cover the entire time: define rules for filling first
-            start_date = options[START_DATE]
-            assert start_date == self.times[
-                0].to_pydatetime(), 'Start date of time index and variable must be identical.'
-            end_date = options[END_DATE]
-            assert end_date == self.times[-1].to_pydatetime(), 'End date of time index and variable must be identical.'
+        # @todo - fill to cover the entire time: define rules for filling first
+        ref_date = options[REF_DATE] if REF_DATE in options else self.times[0].to_pydatetime()
 
-            a = growth_coefficients(start_date, end_date, ref_date, alpha, self.size)
+        start_date = options[START_DATE] if START_DATE in options else self.times[0].to_pydatetime()
+        assert start_date == self.times[
+            0].to_pydatetime(), 'Start date of time index and variable must be identical.'
+        end_date = options[END_DATE] if END_DATE in options else self.times[-1].to_pydatetime()
+        assert end_date == self.times[
+            -1].to_pydatetime(), 'End date of time index and variable must be identical.'
 
-            values *= a.ravel()
+        a = growth_coefficients(start_date, end_date, ref_date, alpha, self.size)
+
+        values *= a.ravel()
 
         df = pd.DataFrame(values)
         df._metadata = [options]
@@ -323,8 +367,8 @@ from abc import ABCMeta, abstractmethod
 
 class LoaderDataSource(object):
     """
-    A handle to datasources such that we can reload them when the underlying datasource on file has changed.
-
+    A handle to files or other stores with variable definitions
+    such that we can reload them when the underlying file has changed.
     """
     __metaclass__ = ABCMeta
 
@@ -332,7 +376,7 @@ class LoaderDataSource(object):
         self.size = size
 
     @abstractmethod
-    def get_loader(self):
+    def get_loader(self, **kwargs):
         pass
 
 
@@ -352,6 +396,10 @@ class ExcelLoaderMixin(object):
 
 
 class ExcelLoaderDataSource(ExcelLoaderMixin, LoaderDataSource):
+    """
+    Source for one-dimensional random variables
+    """
+
     def __init__(self, file, size=1, sheet_index=None, sheet_name=None):
         super(ExcelLoaderDataSource, self).__init__(size)
 
@@ -359,11 +407,15 @@ class ExcelLoaderDataSource(ExcelLoaderMixin, LoaderDataSource):
         self.sheet_index = sheet_index
         self.file = file
 
-    def get_loader(self):
-        return ParameterLoader.from_excel(self.file, self.size, self.sheet_index, self.sheet_name)
+    def get_loader(self, **kwargs):
+        return ParameterLoader.from_excel(self.file, self.size, self.sheet_index, self.sheet_name, **kwargs)
 
 
 class DataSeriesLoaderDataSource(LoaderDataSource):
+    """
+    Abstract class that has a times property for time series data.
+    This data is a two-dimensional random variable with multiple values for each time step.
+    """
     __metaclass__ = ABCMeta
 
     def __init__(self, times, size=1):
@@ -371,11 +423,15 @@ class DataSeriesLoaderDataSource(LoaderDataSource):
         self.times = times
 
     @abstractmethod
-    def get_loader(self):
-        return super(DataSeriesLoaderDataSource, self).get_loader()
+    def get_loader(self, **kwargs):
+        return super(DataSeriesLoaderDataSource, self).get_loader(**kwargs)
 
 
 class ExcelSeriesLoaderDataSource(ExcelLoaderMixin, DataSeriesLoaderDataSource):
+    """
+    Load data from excel.
+    """
+
     def __init__(self, file, times, size=1, sheet_index=None, sheet_name=None, index_names=None):
         super(ExcelSeriesLoaderDataSource, self).__init__(times, size)
         if index_names is None:
@@ -385,16 +441,17 @@ class ExcelSeriesLoaderDataSource(ExcelLoaderMixin, DataSeriesLoaderDataSource):
         self.sheet_index = sheet_index
         self.file = file
 
-    def get_loader(self):
+    def get_loader(self, **kwargs):
         return DataSeriesLoader.from_excel(self.file, self.times, self.size, self.sheet_index, self.sheet_name,
-                                           self.index_names)
+                                           self.index_names, **kwargs)
 
 
 class DataFrameLoaderDataSource(DataSeriesLoaderDataSource):
     """
+    Load variables from a dataframe.
+
     Needed to comply with the interface.
     Does not actually do much.
-
     """
 
     def __init__(self, name, df, times, size=1, index_names=None):
@@ -414,20 +471,28 @@ class DataFrameLoaderDataSource(DataSeriesLoaderDataSource):
     def __hash__(self):
         return hash(self.__key())
 
-    def get_loader(self):
-        return DataSeriesLoader.from_dataframe(self.df, self.times, self.size, self.index_names)
+    def get_loader(self, **kwargs):
+        return DataSeriesLoader.from_dataframe(self.df, self.times, self.size, self.index_names, **kwargs)
 
 
 class MultiSourceLoader(object):
     """
     Bundles sources loaders.
+    A variable can be instantiated from any of the underlying sources in a first come, first serve manner.
     """
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         self._sources = {}
+        self.kwargs = kwargs
 
     def add_source(self, source):
-        loader = source.get_loader()
+        """
+        Add a source to load variable definitions from.
+        Sources are of type ::
+        :param source:
+        :return:
+        """
+        loader = source.get_loader(**self.kwargs)
         self._sources[source] = loader
 
     def __getitem__(self, item):
@@ -446,7 +511,7 @@ class MultiSourceLoader(object):
     def reload_sources(self):
         for source, loader in self._sources.items():
             logger.info('Reloading source %s' % source)
-            self._sources[source] = source.get_loader()
+            self._sources[source] = source.get_loader(**self.kwargs)
 
 
 class MCDataset(Dataset):
@@ -455,9 +520,9 @@ class MCDataset(Dataset):
     SourceLoader dict.
     """
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.known_items = []
-        self._ldr = MultiSourceLoader()
+        self._ldr = MultiSourceLoader(**kwargs)
         super(MCDataset, self).__init__()
 
     def add_source(self, loader):
@@ -470,6 +535,13 @@ class MCDataset(Dataset):
         self._ldr.reload_sources()
 
     def prepare(self, item):
+        """
+        Load a variable from the data source into the :xray.Dataset:
+
+        :param item:
+        :return:
+        """
+
         series = self._ldr[item]
         meta = series._metadata[0]
         # take the abs because we don't want negative values
@@ -480,6 +552,12 @@ class MCDataset(Dataset):
         return s
 
     def __getitem__(self, item):
+        """
+        Return a variable from the backing :xray.Dataset:
+        If the variable is not present in the Dataset it is instantiated from a source.
+        :param item:
+        :return:
+        """
         try:
             return super(MCDataset, self).__getitem__(item)
         except Exception as inst:

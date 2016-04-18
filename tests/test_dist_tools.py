@@ -4,7 +4,7 @@ from dateutil import relativedelta
 import numpy as np
 from openpyxl import load_workbook
 
-from excel_helper.helper import ParameterLoader, build_distribution, DataSeriesLoader, growth_coefficients, \
+from excel_helper.helper import ParameterLoader, get_random_variable_definition, DataSeriesLoader, growth_coefficients, \
     MultiSourceLoader, MCDataset, ExcelSeriesLoaderDataSource, ExcelLoaderDataSource
 import pandas as pd
 
@@ -34,7 +34,7 @@ class TestExcelTool(unittest.TestCase):
 
         row = data.get_row('a')
         # print row
-        f, p, _ = build_distribution(row)
+        f, p, _ = get_random_variable_definition(row)
         print(p)
         print(f(*p))
 
@@ -437,7 +437,35 @@ class TestMCDataset(unittest.TestCase):
         # assert res.loc[[datetime(2009, 1, 1)]][0] == 1
         # assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
 
+    def test_fix_variables(self):
+        """
+        Test a model with a single random variable - all other variables are fixed to their mean values.
+        :return:
+        """
+        data = MCDataset(single_var='b')
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
 
+        # the sample axis our dataset
+        samples = 10
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
+
+        a = data['a']
+        b = data['b']
+
+        print(a)
+        print(b.mean(dim='samples'))
+        c = a * b
+        print(c)
+        assert a.shape == c.shape
+        d = b * a
+        print(d)
+        assert a.shape == d.shape
+
+
+
+
+        # assert res.loc[[datetime(2009, 1, 1)]][0] == 1
+        # assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
 
 
 class TestExcelLoaderMixin(unittest.TestCase):
@@ -447,6 +475,27 @@ class TestExcelLoaderMixin(unittest.TestCase):
 
         source = ExcelLoaderDataSource('test.xlsx', size=1, sheet_index=0)
         print(source)
+
+
+class KWReceiver(object):
+    def __init__(self, **kwargs):
+        print(kwargs)
+
+
+class KWTest(object):
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+    def run(self):
+        KWReceiver(**self.kwargs)
+
+
+class TestKWArgs(unittest.TestCase):
+    def test_simple(self):
+        logging.basicConfig(level=logging.INFO)
+        # logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s', level=logging.INFO)
+
+        KWTest(a=1, b=2).run()
 
 
 if __name__ == '__main__':
