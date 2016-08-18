@@ -452,13 +452,14 @@ class TestMCDataset(unittest.TestCase):
         a = data['a']
         b = data['b']
 
-        print(a)
-        print(b.mean(dim='samples'))
+        # print(a)
+        assert np.all(np.equal(a, np.ones(a.shape)))
+        # print(b.mean(dim='samples'))
         c = a * b
-        print(c)
+        # print(c)
         assert a.shape == c.shape
         d = b * a
-        print(d)
+        # print(d)
         assert a.shape == d.shape
 
 

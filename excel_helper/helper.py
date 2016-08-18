@@ -16,9 +16,9 @@ from openpyxl.utils.datetime import from_excel
 import xlrd
 import pandas as pd
 import numpy as np
-from xray import Dataset, DataArray
 
 from dateutil import relativedelta as rdelta
+from xarray import Dataset, DataArray
 
 SINGLE_VAR = 'single_var'
 
