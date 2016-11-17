@@ -68,6 +68,19 @@ class MinType(object):
 Min = MinType()
 
 
+def get_analytical_mean(options, X):
+    name = options['name']
+    if name == 'normal':
+        return options['params'][0]
+    if name == 'uniform':
+        return (options['params'][0] + options['params'][1]) / 2
+    if name == 'choice':
+        return options['params'][0]
+    if name == 'triangular':
+        return (options['params'][0] + options['params'][1] + options['params'][2]) / 3
+    return X.mean()
+
+
 class ParameterLoader(object):
     """
     Load parameters from excel or a tabular source.
@@ -128,13 +141,19 @@ class ParameterLoader(object):
             size = self.size
 
         # generate the distribution
-        ret = f(*p, size=size).astype('f')
+        X = f(*p, size=size).astype('f')
 
-        if SINGLE_VAR in self.kwargs and not self.kwargs[SINGLE_VAR] == name:
-            # reduce
-            return np.full(size, ret.mean())
+        if SINGLE_VAR in self.kwargs:
 
-        return ret
+            # use it for all variables, other than the single var
+            # if this is the single var, make sure 'with_single_var_cagr' is set to True
+            if not self.kwargs[SINGLE_VAR] == name or \
+                            hasattr(self, 'with_single_var_cagr') and \
+                            not self.with_single_var_cagr:
+                # reduce to mean
+                return np.full(size, get_analytical_mean(options, X))
+
+        return X
 
     def get_val(self, name):
         """
@@ -209,6 +228,10 @@ def load_workbook(file, sheet_index=None, sheet_name=None):
 
     def transform(col_idx, col):
 
+        # strip white spaces
+        if INV_TABLE_STRUCT[col_idx] in [NAME]:
+            return [i.strip() for i in col]
+        # transform dates
         if INV_TABLE_STRUCT[col_idx] in [START_DATE, END_DATE, REF_DATE]:
             return [from_excel(i) if type(i) == float else i for i in col]
         return col
@@ -225,8 +248,9 @@ def get_random_variable_definition(row):
     """
 
     module = importlib.import_module(row[TABLE_STRUCT[MODULE]])
-    func = getattr(module, row[TABLE_STRUCT[DISTRIBUTION]])
-    if row[TABLE_STRUCT[DISTRIBUTION]] == 'choice':
+    distribution_name = row[TABLE_STRUCT[DISTRIBUTION]]
+    func = getattr(module, distribution_name)
+    if distribution_name == 'choice':
 
         cell = row[TABLE_STRUCT[PARAM_A]]
         if type(cell) in [float, int]:
@@ -236,14 +260,19 @@ def get_random_variable_definition(row):
 
             params = [float(token.strip()) for token in tokens]
             params = (params,)
-    elif row[TABLE_STRUCT[DISTRIBUTION]] == 'Distribution':
+    # @todo rename to 'empirical'
+    elif distribution_name == 'Distribution':
         func = func()
         params = tuple(row[TABLE_STRUCT[i]] for i in [PARAM_A, PARAM_B, PARAM_C] if row[TABLE_STRUCT[i]])
     else:
-        params = tuple(row[TABLE_STRUCT[i]] for i in [PARAM_A, PARAM_B, PARAM_C] if row[TABLE_STRUCT[i]])
+        params = tuple(
+            row[TABLE_STRUCT[i]] for i in [PARAM_A, PARAM_B, PARAM_C] if row[TABLE_STRUCT[i]] not in [None, ''])
 
     options = {key: row[TABLE_STRUCT[key]] for key in [UNIT, LABEL, COMMENT, START_DATE, END_DATE, CAGR, REF_DATE] if
                row[TABLE_STRUCT[key]]}
+
+    options['name'] = distribution_name
+    options['params'] = params
 
     return func, params, options
 
@@ -302,6 +331,9 @@ class DataSeriesLoader(ParameterLoader):
     def __init__(self, rows, times, index_names, size, **kwargs):
         super(DataSeriesLoader, self).__init__(rows, size)
         self.kwargs = kwargs
+        # single var variability is on by default
+        self.with_single_var_cagr = kwargs['with_single_var_cagr'] if 'with_single_var_cagr' in kwargs else True
+
         self.times = times
         iterables = [times, range(0, size)]
         self._multi_index = pd.MultiIndex.from_product(iterables, names=index_names)
@@ -340,7 +372,7 @@ class DataSeriesLoader(ParameterLoader):
         alpha = 0
         # apply CAGR if present - or if we are in 'single_var mode' then, this needs to be the single_var
         if CAGR in options.keys() and REF_DATE in options.keys() and \
-                (SINGLE_VAR not in self.kwargs or self.kwargs[SINGLE_VAR] == name):
+                (SINGLE_VAR not in self.kwargs or self.with_single_var_cagr and self.kwargs[SINGLE_VAR] == name):
             alpha = options[CAGR]
 
         # @todo - fill to cover the entire time: define rules for filling first
@@ -432,7 +464,7 @@ class ExcelSeriesLoaderDataSource(ExcelLoaderMixin, DataSeriesLoaderDataSource):
     Load data from excel.
     """
 
-    def __init__(self, file, times, size=1, sheet_index=None, sheet_name=None, index_names=None):
+    def __init__(self, file, times, size=1, sheet_index=None, sheet_name=None, index_names=None, **kwargs):
         super(ExcelSeriesLoaderDataSource, self).__init__(times, size)
         if index_names is None:
             index_names = ['time', 'samples']
@@ -440,6 +472,7 @@ class ExcelSeriesLoaderDataSource(ExcelLoaderMixin, DataSeriesLoaderDataSource):
         self.sheet_name = sheet_name
         self.sheet_index = sheet_index
         self.file = file
+        self.kwargs = kwargs
 
     def get_loader(self, **kwargs):
         return DataSeriesLoader.from_excel(self.file, self.times, self.size, self.sheet_index, self.sheet_name,
@@ -543,6 +576,8 @@ class MCDataset(Dataset):
         """
 
         series = self._ldr[item]
+        if series is None:
+            raise LookupError('%s not found in any of the loaders' % item)
         meta = series._metadata[0]
         # take the abs because we don't want negative values
         s = DataArray.from_series(series.abs())
@@ -558,8 +593,14 @@ class MCDataset(Dataset):
         :param item:
         :return:
         """
+        if item == '_ipython_canary_method_should_not_exist_':
+            print('trying to load %s' % item)
+            return
         try:
+
+            # print('trying to load %s' % item)
             return super(MCDataset, self).__getitem__(item)
         except Exception as inst:
+            # print('%s not found, trying to load' % item)
             self.prepare(item)
             return super(MCDataset, self).__getitem__(item)

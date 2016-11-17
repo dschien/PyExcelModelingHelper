@@ -437,6 +437,106 @@ class TestMCDataset(unittest.TestCase):
         # assert res.loc[[datetime(2009, 1, 1)]][0] == 1
         # assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
 
+    def test_fix_variables_analytic_mean_choice_distribution(self):
+        """
+        Test a model with a single random variable - all other variables are fixed to their mean values.
+        :return:
+        """
+        data = MCDataset(single_var='b')
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+
+        # the sample axis our dataset
+        samples = 10
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
+        a = data['a']
+        print(a)
+        assert np.all(np.equal(a, np.ones(a.shape)))
+
+    def test_fix_variables_analytic_mean_uniform_distribution(self):
+        """
+        Test a model with a single random variable - all other variables are fixed to their mean values.
+        :return:
+        """
+        data = MCDataset(single_var='a')
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+
+        # the sample axis our dataset
+        samples = 10
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
+        b = data['b']
+
+        assert np.all(np.equal(b, np.ones(b.shape) * 3))
+
+    def test_fix_variables_analytic_mean_triangular_distribution(self):
+        """
+        Test a model with a single random variable - all other variables are fixed to their mean values.
+        :return:
+        """
+        data = MCDataset(single_var='a')
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+
+        # the sample axis our dataset
+        samples = 10
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
+        c = data['c']
+
+        assert np.all(np.equal(c, np.ones(c.shape) * 19 / 3))
+
+    def test_fix_variables_analytic_mean_normal_distribution(self):
+        """
+        Test a model with a single random variable - all other variables are fixed to their mean values.
+        :return:
+        """
+        data = MCDataset(single_var='a')
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+
+        # the sample axis our dataset
+        samples = 10
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
+        e = data['e']
+
+        assert np.all(np.equal(e, np.ones(e.shape)))
+
+    def test_fix_variables_analytic_mean_normal_zero_distribution(self):
+        """
+        Test a model with a single random variable - all other variables are fixed to their mean values.
+        :return:
+        """
+        data = MCDataset(single_var='a')
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+
+        # the sample axis our dataset
+        samples = 10
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
+        e = data['ez']
+
+        assert np.all(np.equal(e, np.zeros(e.shape)))
+
+    def test_fix_variables_repeat_mean(self):
+        """
+        Test a model with a single random variable - all other variables are fixed to their mean values.
+        :return:
+        """
+        data = MCDataset(single_var='a')
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+
+        # the sample axis our dataset
+        samples = 10
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
+
+        b = data['b']
+        print(b)
+        data = MCDataset(single_var='a')
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+
+        # the sample axis our dataset
+        samples = 10
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
+
+        print(data['b'])
+
+        assert np.all(np.equal(b, data['b']))
+
     def test_fix_variables(self):
         """
         Test a model with a single random variable - all other variables are fixed to their mean values.
@@ -461,6 +561,49 @@ class TestMCDataset(unittest.TestCase):
         d = b * a
         # print(d)
         assert a.shape == d.shape
+
+    def test_single_var_without_cagr(self):
+        data = MCDataset(single_var='a', with_single_var_cagr=False)
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+
+        # the sample axis our dataset
+        samples = 10
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
+
+        a = data['a']
+        print(a)
+        assert np.all(np.equal(a, np.ones(a.shape)))
+
+    def test_single_var_with_cagr(self):
+        data = MCDataset(single_var='a')
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+
+        # the sample axis our dataset
+        samples = 10
+        data.add_source(
+            ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
+
+        res = data['a']
+        print(res)
+        january = res.loc[[datetime(2009, 1, 1)]]
+        assert np.all(np.equal(january, np.ones(january.shape)))
+
+        april = res.loc[[datetime(2009, 4, 1)]]
+        diff = april - np.ones(april.shape) * pow(1.1, 3. / 12)
+
+        assert np.all(np.less(diff, np.ones(april.shape) * 0.00001))
+
+    def test_average(self):
+        data = MCDataset()
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+        # the sample axis our dataset
+        samples = 2
+        data.add_source(ExcelSeriesLoaderDataSource('test.xlsx', times, size=samples, sheet_index=0))
+
+        a = data['a']
+        b = data['b']
+
+        print(data.mean())
 
 
 
