@@ -17,6 +17,12 @@ class TestExcelTool(unittest.TestCase):
     # def setUp(self):
     # self.seq = range(10)
 
+    def test_space_in_var_name(self):
+        data = ParameterLoader.from_excel('test.xlsx', size=1, sheet_name='Sheet1')
+        res = data['variable with space at end in excel'][0]
+
+        assert res == 2 or res == 4
+
     def test_open_by_name(self):
         data = ParameterLoader.from_excel('test.xlsx', size=1, sheet_name='Sheet1')
         res = data['c'][0]
@@ -303,6 +309,53 @@ class TestDataFrameWithCAGRCalculation(unittest.TestCase):
 
         assert res.loc[[datetime(2009, 1, 1)]][0] == 1
         assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
+
+    def test_CAGR_ref_date_within_bounds(self):
+        """
+        Basic test case, applying CAGR to a Pandas Dataframe.
+
+        :return:
+        """
+        # the time axis of our dataset
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+        # the sample axis our dataset
+        samples = 2
+
+        dfl = DataSeriesLoader.from_excel('test.xlsx', times, size=samples, sheet_index=0)
+        res = dfl['a']
+
+        assert res.loc[[datetime(2009, 1, 1)]][0] == 1
+        assert np.abs(res.loc[[datetime(2009, 4, 1)]][0] - pow(1.1, 3. / 12)) < 0.00001
+
+    def test_CAGR_ref_date_before_start(self):
+        """
+        Basic test case, applying CAGR to a Pandas Dataframe.
+
+        :return:
+        """
+        # the time axis of our dataset
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+        # the sample axis our dataset
+        samples = 2
+
+        dfl = DataSeriesLoader.from_excel('test.xlsx', times, size=samples, sheet_index=0)
+        # equivalent to dfl['test_ref_date_before_start']
+        self.assertRaises(AssertionError, dfl.__getitem__, 'test_ref_date_before_start')
+
+    def test_CAGR_ref_date_after_end(self):
+        """
+        Basic test case, applying CAGR to a Pandas Dataframe.
+
+        :return:
+        """
+        # the time axis of our dataset
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+        # the sample axis our dataset
+        samples = 2
+
+        dfl = DataSeriesLoader.from_excel('test.xlsx', times, size=samples, sheet_index=0)
+        # equivalent to dfl['test_ref_date_before_start']
+        self.assertRaises(AssertionError, dfl.__getitem__, 'test_ref_date_after_end')
 
     def test_simple_CAGR_from_pandas(self):
         times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')

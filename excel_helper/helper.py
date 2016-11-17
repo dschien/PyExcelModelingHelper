@@ -377,6 +377,8 @@ class DataSeriesLoader(ParameterLoader):
 
         # @todo - fill to cover the entire time: define rules for filling first
         ref_date = options[REF_DATE] if REF_DATE in options else self.times[0].to_pydatetime()
+        assert ref_date >= self.times[0].to_pydatetime(), 'Ref date must be within variable time span.'
+        assert ref_date <= self.times[-1].to_pydatetime(), 'Ref date must be within variable time span.'
 
         start_date = options[START_DATE] if START_DATE in options else self.times[0].to_pydatetime()
         assert start_date == self.times[
