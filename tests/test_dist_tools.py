@@ -666,12 +666,28 @@ class TestMCDataset(unittest.TestCase):
 
 
 class TestExcelLoaderMixin(unittest.TestCase):
+
     def test_repr(self):
         logging.basicConfig(level=logging.INFO)
         # logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s', level=logging.INFO)
 
         source = ExcelLoaderDataSource('test.xlsx', size=1, sheet_index=0)
         print(source)
+
+    def test_file_not_found(self):
+        logging.basicConfig(level=logging.INFO)
+        data = MCDataset()
+        times = pd.date_range('2009-01-01', '2009-04-01', freq='MS')
+        # the sample axis our dataset
+        samples = 2
+        data.add_source(ExcelSeriesLoaderDataSource('test2.xlsx', times, size=samples, sheet_index=0))
+
+        a = data['a']
+        b = data['b']
+
+        print(data.mean())
+
+        a = data['a']
 
 
 class KWReceiver(object):
