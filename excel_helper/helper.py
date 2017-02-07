@@ -141,7 +141,9 @@ class ParameterLoader(object):
             size = self.size
 
         # generate the distribution
-        X = f(*p, size=size).astype('f')
+        X = f(*p, size=size)
+        if type(X) is not float:
+            X = X.astype('f')
 
         if SINGLE_VAR in self.kwargs:
 
