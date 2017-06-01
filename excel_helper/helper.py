@@ -80,11 +80,6 @@ class Parameter(object):
         pass
 
 
-class CAGRTimeSeriesDistributionFunctionParameter(Parameter):
-    cagr: str
-    ref_date: str
-
-
 class DistributionFunctionParameter(Parameter):
     module: str
     distribution: str
@@ -92,25 +87,114 @@ class DistributionFunctionParameter(Parameter):
     param_b: str
     param_c: str
 
-    def __init__(self, name, module, distribution_name, scenario: str = None, param_a: float = None,
-                 param_b: float = None, param_c: float = None):
+    def __init__(self, name, module_name, distribution_name, scenario: str = None, param_a: float = None,
+                 param_b: float = None, param_c: float = None, sample_size=None):
         super().__init__(name, scenario)
 
+        self.size = sample_size
+        self.module_name = module_name
         self.distribution_name = distribution_name
-        self.module = module
+
         self.param_a = param_a
         self.param_b = param_b
         self.param_c = param_c
 
     def generate_values(self, *args, **kwargs):
-        f = self.instantiate_distribution_function(self.module, self.distribution_name)
-        return f(*args, size=kwargs['size'])
+        """
+        Generate values by sampling from a distribution. The size of the sample can be overriden with the 'size' kwarg.
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        f = self.instantiate_distribution_function(self.module_name, self.distribution_name)
+        return f(*args, size=kwargs['size'] if 'size' in kwargs else self.size)
 
     @staticmethod
     def instantiate_distribution_function(module_name, distribution_name):
         module = importlib.import_module(module_name)
         func = getattr(module, distribution_name)
         return func
+
+
+class ExponentialGrowthTimeSeriesDistributionFunctionParameter(DistributionFunctionParameter):
+    cagr: str
+    ref_date: str
+
+    def __init__(self, name, cagr=None, times=None, sample_size=None, index_names=None, ref_date=None, *args, **kwargs):
+        super().__init__(name, *args, **kwargs)
+        self.cagr = cagr
+        self.ref_date = ref_date
+        self.times = times
+        self.size = sample_size
+        iterables = [times, range(0, sample_size)]
+        self._multi_index = pd.MultiIndex.from_product(iterables, names=index_names)
+        assert type(times.freq) == pd.tseries.offsets.MonthBegin, 'Time index must have monthly frequency'
+
+    def __call__(self, *args, **kwargs):
+        """
+        Wraps the value in a dataframe
+        :param name:
+        :param kwargs:
+        :return:
+        """
+        df = self.generate_values()
+        df.set_index(self._multi_index, inplace=True)
+        df.columns = [self.name]
+        # @todo this is a hack to return a series with index as I don't know how to set an index and rename a series
+        data_series = df.ix[:, 0]
+        data_series._metadata = df._metadata
+        return data_series
+
+    def generate_values(self, *args, **kwargs):
+        """
+        Instantiate a random variable and apply annual growth factors.
+
+        :return:
+        """
+        values = super().generate_values(*args, **kwargs, size=(len(self.times) * self.size,))
+        alpha = self.cagr
+
+        # @todo - fill to cover the entire time: define rules for filling first
+        ref_date = self.ref_date if self.ref_date else self.times[0].to_pydatetime()
+        assert ref_date >= self.times[0].to_pydatetime(), 'Ref date must be within variable time span.'
+        assert ref_date <= self.times[-1].to_pydatetime(), 'Ref date must be within variable time span.'
+
+        start_date = self.times[0].to_pydatetime()
+        end_date = self.times[-1].to_pydatetime()
+
+        a = growth_coefficients(start_date, end_date, ref_date, alpha, self.size)
+
+        values *= a.ravel()
+
+        df = pd.DataFrame(values)
+        # df._metadata = [options]
+        return df
+
+
+def growth_coefficients(start_date, end_date, ref_date, alpha, samples):
+    """
+    Build a matrix of growth factors according to the CAGR formula  y'=y0 (1+a)^(t'-t0).
+    The
+    """
+    if ref_date < start_date:
+        raise ValueError("Ref data must be >= start date.")
+    if ref_date > end_date:
+        raise ValueError("Ref data must be >= start date.")
+    if ref_date > start_date and alpha >= 1:
+        raise ValueError("For a CAGR >= 1, ref date and start date must be the same.")
+    # relative delta will be positive if ref date is >= start date (which it should with above assertions)
+    delta_ar = rdelta.relativedelta(ref_date, start_date)
+    ar = delta_ar.months + 12 * delta_ar.years
+    delta_br = rdelta.relativedelta(end_date, ref_date)
+    br = delta_br.months + 12 * delta_br.years
+
+    # we place the ref point on the lower interval (delta_ar + 1) but let it start from 0
+    # in turn we let the upper interval start from 1
+    g = np.fromfunction(lambda i, j: np.power(1 - alpha, np.abs(i) / 12), (ar + 1, samples), dtype=float)
+    h = np.fromfunction(lambda i, j: np.power(1 + alpha, np.abs(i + 1) / 12), (br, samples), dtype=float)
+    g = np.flipud(g)
+    # now join the two arrays
+    return np.vstack((g, h))
 
 
 class ParameterScenarioSet(object):
@@ -134,7 +218,6 @@ class ParameterScenarioSet(object):
         :param parameter:
         :return:
         """
-
         self.scenarios[scenario_name] = parameter
 
     def __getitem__(self, item):
@@ -396,32 +479,6 @@ def get_random_variable_definition(row):
     options['params'] = params
 
     return func, params, options
-
-
-def growth_coefficients(start_date, end_date, ref_date, alpha, samples):
-    """
-    Build a matrix of growth factors according to the CAGR formula  y'=y0 (1+a)^(t'-t0).
-    The
-    """
-    if ref_date < start_date:
-        raise ValueError("Ref data must be >= start date.")
-    if ref_date > end_date:
-        raise ValueError("Ref data must be >= start date.")
-    if ref_date > start_date and alpha >= 1:
-        raise ValueError("For a CAGR >= 1, ref date and start date must be the same.")
-    # relative delta will be positive if ref date is >= start date (which it should with above assertions)
-    delta_ar = rdelta.relativedelta(ref_date, start_date)
-    ar = delta_ar.months + 12 * delta_ar.years
-    delta_br = rdelta.relativedelta(end_date, ref_date)
-    br = delta_br.months + 12 * delta_br.years
-
-    # we place the ref point on the lower interval (delta_ar + 1) but let it start from 0
-    # in turn we let the upper interval start from 1
-    g = np.fromfunction(lambda i, j: np.power(1 - alpha, np.abs(i) / 12), (ar + 1, samples), dtype=float)
-    h = np.fromfunction(lambda i, j: np.power(1 + alpha, np.abs(i + 1) / 12), (br, samples), dtype=float)
-    g = np.flipud(g)
-    # now join the two arrays
-    return np.vstack((g, h))
 
 
 class DataSeriesLoader(ParameterLoader):
