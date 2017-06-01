@@ -12,8 +12,10 @@ from collections import defaultdict
 import importlib
 import itertools
 import operator
+from typing import Dict
+
+import openpyxl
 from openpyxl.utils.datetime import from_excel
-import xlrd
 import pandas as pd
 import numpy as np
 
@@ -50,6 +52,116 @@ INV_TABLE_STRUCT = {v: k for k, v in TABLE_STRUCT.items()}
 DEFAULT_SCENARIO = 'def'
 
 from functools import total_ordering
+
+
+class Parameter(object):
+    """
+    A single parameter
+    """
+
+    name: str
+    scenario: str
+    unit: str
+    label: str
+    comment: str
+    source: str
+
+    "optional comma-separated list of tags"
+    tags: str
+
+    def __init__(self, name, scenario: str = None):
+        self.scenario = scenario
+        self.name = name
+
+    def __call__(self, *args, **kwargs):
+        return self.generate_values(*args, **kwargs)
+
+    def generate_values(self, *args, **kwargs):
+        pass
+
+
+class CAGRTimeSeriesDistributionFunctionParameter(Parameter):
+    cagr: str
+    ref_date: str
+
+
+class DistributionFunctionParameter(Parameter):
+    module: str
+    distribution: str
+    param_a: str
+    param_b: str
+    param_c: str
+
+    def __init__(self, name, module, distribution_name, scenario: str = None, param_a: float = None,
+                 param_b: float = None, param_c: float = None):
+        super().__init__(name, scenario)
+
+        self.distribution_name = distribution_name
+        self.module = module
+        self.param_a = param_a
+        self.param_b = param_b
+        self.param_c = param_c
+
+    def generate_values(self, *args, **kwargs):
+        f = self.instantiate_distribution_function(self.module, self.distribution_name)
+        return f(*args, size=kwargs['size'])
+
+    @staticmethod
+    def instantiate_distribution_function(module_name, distribution_name):
+        module = importlib.import_module(module_name)
+        func = getattr(module, distribution_name)
+        return func
+
+
+class ParameterScenarioSet(object):
+    """
+    The set of all version of a parameter for all the scenarios.
+    """
+    default_scenario = 'default'
+
+    "the name of the parameters in this set"
+    parameter_name: str
+    scenarios: Dict[str, Parameter]
+
+    def __init__(self):
+        self.scenarios = {}
+
+    def add_scenario(self, parameter: 'Parameter', scenario_name: str = default_scenario):
+        """
+        Add a scenario for this parameter.
+
+        :param scenario_name:
+        :param parameter:
+        :return:
+        """
+
+        self.scenarios[scenario_name] = parameter
+
+    def __getitem__(self, item):
+        return self.scenarios.__getitem__(item)
+
+    def __setitem__(self, key, value):
+        return self.scenarios.__setitem__(key, value)
+
+
+class ParameterRepository(object):
+    """
+    Contains all known parameters.
+    """
+    parameter_set: Dict[str, ParameterScenarioSet]
+
+    def __init__(self):
+        self.parameter_set = defaultdict(ParameterScenarioSet)
+
+    def add_parameter(self, parameter: Parameter):
+        scenario = parameter.scenario if parameter.scenario else ParameterScenarioSet.default_scenario
+        self.parameter_set[parameter.name][scenario] = parameter
+
+    def __getitem__(self, item):
+        return self.parameter_set[item][ParameterScenarioSet.default_scenario]
+
+    def get_parameter(self, param_name, scenario_name=None):
+        return self.parameter_set[param_name][scenario_name if scenario_name else ParameterScenarioSet.default_scenario]
 
 
 @total_ordering
@@ -91,13 +203,20 @@ class ParameterLoader(object):
     """
 
     @classmethod
-    def from_excel(cls, file, size=1, sheet_index=None, sheet_name=None, **kwargs):
+    def from_excel(cls, file, size=1, sheet_name=None, **kwargs):
         """Initialize from an excel file"""
-        rows = load_workbook(file, sheet_index, sheet_name)
+        rows = openpyxl.load_workbook(file, sheet_name)
 
         return cls(rows, size, **kwargs)
 
     def __init__(self, rows, size, **kwargs):
+        """
+        Rows is a list of tuples.
+
+        :param rows:
+        :param size:
+        :param kwargs:
+        """
         self.kwargs = kwargs
         self.data = defaultdict(list)
 
@@ -208,7 +327,7 @@ class ParameterLoader(object):
         return self.get_val(name)
 
 
-def load_workbook(file, sheet_index=None, sheet_name=None):
+def load_workbook(file, sheet_name=None):
     """
     Build a list of tuples from the columns of the excel table.
 
@@ -219,12 +338,12 @@ def load_workbook(file, sheet_index=None, sheet_name=None):
         (col1,col2,...),
     ]
     """
-    wb = xlrd.open_workbook(file)
+    wb = load_workbook(file)
     sh = None
     if sheet_name is not None:
-        sh = wb.sheet_by_name(sheet_name)
-    if sheet_index is not None:
-        sh = wb.sheet_by_index(sheet_index)
+        sh = wb[sheet_name]
+    # if sheet_index is not None:
+    #     sh = wb.sheet_by_index(sheet_index)
     if not sh:
         raise Exception('Must provide either sheet name or sheet index')
 
