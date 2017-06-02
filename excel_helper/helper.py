@@ -60,37 +60,47 @@ class Parameter(object):
     """
 
     name: str
-    scenario: str
     unit: str
     label: str
     comment: str
     source: str
+    tags: list
+    scenario: str
 
     "optional comma-separated list of tags"
     tags: str
 
-    def __init__(self, name, scenario: str = None):
-        self.scenario = scenario
+    def __init__(self, name, value_generator=None, tags=None, source_scenarios_string: str = None, **kwargs):
+        # The source definition of scenarios. A comma-separated list
+        self.source_scenarios_string = source_scenarios_string
+        self.tags = tags
         self.name = name
+        self.value_generator = value_generator
+
+        self.scenario = None
+        self.cache = None
 
     def __call__(self, *args, **kwargs):
-        return self.generate_values(*args, **kwargs)
+        """
+        Returns the same value everytime called.
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        if not self.cache:
+            self.cache = self.value_generator.generate_values(*args, **kwargs)
+        return self.cache
 
-    def generate_values(self, *args, **kwargs):
-        pass
 
-
-class DistributionFunctionParameter(Parameter):
+class DistributionFunctionGenerator(object):
     module: str
     distribution: str
     param_a: str
     param_b: str
     param_c: str
 
-    def __init__(self, name, module_name, distribution_name, scenario: str = None, param_a: float = None,
-                 param_b: float = None, param_c: float = None, sample_size=None):
-        super().__init__(name, scenario)
-
+    def __init__(self, module_name=None, distribution_name=None, param_a: float = None,
+                 param_b: float = None, param_c: float = None, sample_size=None, **kwargs):
         self.size = sample_size
         self.module_name = module_name
         self.distribution_name = distribution_name
@@ -116,12 +126,12 @@ class DistributionFunctionParameter(Parameter):
         return func
 
 
-class ExponentialGrowthTimeSeriesDistributionFunctionParameter(DistributionFunctionParameter):
+class ExponentialGrowthTimeSeriesGenerator(DistributionFunctionGenerator):
     cagr: str
     ref_date: str
 
-    def __init__(self, name, cagr=None, times=None, sample_size=None, index_names=None, ref_date=None, *args, **kwargs):
-        super().__init__(name, *args, **kwargs)
+    def __init__(self, cagr=None, times=None, sample_size=None, index_names=None, ref_date=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.cagr = cagr
         self.ref_date = ref_date
         self.times = times
@@ -232,19 +242,45 @@ class ParameterRepository(object):
     Contains all known parameters.
     """
     parameter_set: Dict[str, ParameterScenarioSet]
+    tags: Dict[str, Dict[str, ParameterScenarioSet]]
 
     def __init__(self):
         self.parameter_set = defaultdict(ParameterScenarioSet)
+        self.tags = defaultdict(lambda: defaultdict(set))
 
-    def add_parameter(self, parameter: Parameter):
-        scenario = parameter.scenario if parameter.scenario else ParameterScenarioSet.default_scenario
-        self.parameter_set[parameter.name][scenario] = parameter
+    def add_parameter(self, parameter: Parameter, scenarios: str = None):
+        """
+        A parameter can have several scenarios. They are defined as a comma-separated list.
+        :param scenarios: a string of comma-separated values of scenario names
+        :param parameter:
+        :return:
+        """
+
+        # try reading the scenarios from the function arg or from the parameter attribute
+        scenario_string = scenarios if scenarios else parameter.source_scenarios_string
+        if scenario_string:
+            _scenarios = [i.strip() for i in scenario_string.split(',')]
+        else:
+            _scenarios = [ParameterScenarioSet.default_scenario]
+
+        for scenario in _scenarios:
+            parameter.scenario = scenario
+            self.parameter_set[parameter.name][scenario] = parameter
+
+        # record all tags for this parameter
+        if parameter.tags:
+            _tags = [i.strip() for i in parameter.tags.split(',')]
+            for tag in _tags:
+                self.tags[tag][parameter.name].add(parameter)
 
     def __getitem__(self, item):
         return self.parameter_set[item][ParameterScenarioSet.default_scenario]
 
     def get_parameter(self, param_name, scenario_name=None):
         return self.parameter_set[param_name][scenario_name if scenario_name else ParameterScenarioSet.default_scenario]
+
+    def find_by_tag(self, tag):
+        return self.tags[tag]
 
 
 @total_ordering
