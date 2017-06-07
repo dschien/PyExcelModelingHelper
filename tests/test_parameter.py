@@ -1,18 +1,15 @@
 import unittest
 
 import pandas as pd
+from excel_helper import Parameter, DistributionFunctionGenerator, ExponentialGrowthTimeSeriesGenerator
 from scipy import stats
-import math
-
-from excel_helper.helper import Parameter, DistributionFunctionGenerator, \
-    ExponentialGrowthTimeSeriesGenerator
 
 
 class ParameterTestCase(unittest.TestCase):
     def test_distribution_generate_values(self):
         p = Parameter('test', value_generator=DistributionFunctionGenerator(module_name='numpy.random',
                                                                             distribution_name='normal', param_a=0,
-                                                                            param_b=.1, sample_size=32))
+                                                                            param_b=.1, size=32))
 
         a = p()
         assert abs(stats.shapiro(a)[0] - 0.9) < 0.1
@@ -25,7 +22,7 @@ class ParameterTestCase(unittest.TestCase):
                                                                                    times=pd.date_range('2009-01-01',
                                                                                                        '2009-03-01',
                                                                                                        freq='MS'),
-                                                                                   sample_size=5,
+                                                                                   size=5,
                                                                                    cagr=0.1
                                                                                    ))
 

@@ -2,9 +2,10 @@ import logging
 from datetime import date, datetime
 from dateutil import relativedelta
 import numpy as np
+from excel_helper import growth_coefficients
 from openpyxl import load_workbook
 
-from excel_helper.helper import ParameterLoader, get_random_variable_definition, DataSeriesLoader, growth_coefficients, \
+from excel_helper.helper import ParameterLoader, get_random_variable_definition, DataSeriesLoader, \
     MultiSourceLoader, MCDataset, ExcelSeriesLoaderDataSource, ExcelLoaderDataSource
 import pandas as pd
 
@@ -666,7 +667,6 @@ class TestMCDataset(unittest.TestCase):
 
 
 class TestExcelLoaderMixin(unittest.TestCase):
-
     def test_repr(self):
         logging.basicConfig(level=logging.INFO)
         # logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s', level=logging.INFO)

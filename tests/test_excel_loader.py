@@ -2,7 +2,7 @@ import unittest
 
 import pandas as pd
 
-from excel_helper import ExcelParameterLoader
+from excel_helper import ExcelParameterLoader, ParameterRepository
 
 
 class ExcelParameterLoaderTestCase(unittest.TestCase):
@@ -14,10 +14,10 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
 
     def test_create_with_timeseries(self):
         loader = ExcelParameterLoader(filename='./test_excelparameterloader.xlsx',
-                                      times=pd.date_range('2009-01-01', '2009-03-01', freq='MS'), sample_size=10)
-
-        repo = loader.create_param_repo(sheet_name='Sheet1')
-        tag_param_dict = repo.find_by_tag('user')
+                                      times=pd.date_range('2009-01-01', '2009-03-01', freq='MS'), size=10)
+        repository = ParameterRepository()
+        loader.load_into_repo(sheet_name='Sheet1', repository=repository)
+        tag_param_dict = repository.find_by_tag('user')
         keys = tag_param_dict.keys()
         print(keys)
         assert 'a' in keys
