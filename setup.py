@@ -40,6 +40,6 @@ setup(
     ],
     packages=find_packages(exclude=['tests*']),
     install_requires=[
-        'xarray', 'xlrd', 'pandas', 'numpy'
+        'xarray', 'xlrd', 'pandas', 'numpy', 'openpyxl', 'dateutil'
     ],
 )

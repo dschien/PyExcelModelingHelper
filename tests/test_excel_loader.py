@@ -24,6 +24,16 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
 
         print(tag_param_dict['a'])
 
+    def test_column_order(self):
+        repository = ParameterRepository()
+
+        ExcelParameterLoader(filename='./test_excelparameterloader.xlsx').load_into_repo(sheet_name='shuffle_col_order',
+                                                                                         repository=repository)
+
+        p = repository.get_parameter('z')
+        assert p.name == 'z'
+        assert p.tags == 'x'
+
 
 if __name__ == '__main__':
     unittest.main()

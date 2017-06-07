@@ -6,14 +6,13 @@ import numpy as np
 import pandas as pd
 from dateutil import relativedelta as rdelta
 from openpyxl import load_workbook
+import logging
 
 __author__ = 'schien'
 
 param_name_map = {'variable': 'name', 'scenario': 'source_scenarios_string', 'module': 'module_name',
-                  'distribution': 'distribution_name', 'param 1': '', 'param 2': '', 'param 3': '', 'unit': '',
-                  'CAGR': '', 'ref date': '', 'label': '', 'tags': '', 'comment': '', 'source': ''}
-
-import logging
+                  'distribution': 'distribution_name', 'param 1': 'param_a', 'param 2': 'param_b', 'param 3': 'param_c',
+                  'unit': '', 'CAGR': '', 'ref date': '', 'label': '', 'tags': '', 'comment': '', 'source': ''}
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -73,9 +72,8 @@ class DistributionFunctionGenerator(object):
         self.module_name = module_name
         self.distribution_name = distribution_name
 
-        self.param_a = param_a
-        self.param_b = param_b
-        self.param_c = param_c
+        # prepare function arguments
+        self.random_function_params = tuple([i for i in [param_a, param_b, param_c] if i])
 
     def generate_values(self, *args, **kwargs):
         """
@@ -85,7 +83,7 @@ class DistributionFunctionGenerator(object):
         :return:
         """
         f = self.instantiate_distribution_function(self.module_name, self.distribution_name)
-        return f(*args, size=kwargs['size'] if 'size' in kwargs else self.size)
+        return f(*args if args else self.random_function_params, size=kwargs['size'] if 'size' in kwargs else self.size)
 
     @staticmethod
     def instantiate_distribution_function(module_name, distribution_name):
@@ -303,7 +301,7 @@ class ParameterRepository(object):
 
 
 class ExcelParameterLoader(object):
-    def __init__(self, filename, times=None, size=None):
+    def __init__(self, filename, times=None, size=None, **kwargs):
         self.size = size
         if times is not None and size is None or times is None and size is not None:
             raise Exception('Both times and size arg must be set at the same time. Or none.')
