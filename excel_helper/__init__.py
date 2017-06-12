@@ -321,6 +321,17 @@ class ParameterRepository(object):
 
 
 class ExcelParameterLoader(object):
+    """Utility to populate ParameterRepository from spreadsheets.
+
+     The structure of the spreadsheets is:
+
+     | variable | ... |
+     |----------|-----|
+     |   ...    | ... |
+
+     If the first row in a spreadsheet does not contain they keyword 'variable' the sheet is ignored.
+
+    """
     def __init__(self, filename, times=None, size=None, **kwargs):
         self.size = size
         if times is not None and size is None:
@@ -331,8 +342,25 @@ class ExcelParameterLoader(object):
     def load_parameter_definitions(self, sheet_name: str = None):
         """
         Load variable text from rows in excel file.
+        If no spreadsheet arg is given, all spreadsheets are loaded.
+        The first cell in the first row in a spreadsheet must contain the keyword 'variable' or the sheet is ignored.
+
+        Any cells used as titles (with no associated value) are also added to the returned dictionary. However, the
+        values associated with each header will be None. For example, given the speadsheet:
+
+        | variable | A | B |
+        |----------|---|---|
+        | Title    |   |   |
+        | Entry    | 1 | 2 |
+
+        The following list of definitions would be returned:
+
+        [ { variable: 'Title', A: None, B: None }
+        , { variable: 'Entry', A: 1   , B: 2    }
+        ]
+
         :param sheet_name:
-        :return:
+        :return: list of dicts with {header col name : cell value} pairs
         """
         definitions = []
 
