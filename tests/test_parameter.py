@@ -30,6 +30,17 @@ class ParameterTestCase(unittest.TestCase):
         print(a)
         # assert abs(stats.shapiro(a)[0] - 0.9) < 0.1
 
+    def test_normal_zero_variance(self):
+        p = Parameter('a', value_generator=DistributionFunctionGenerator(module_name='numpy.random',
+                                                                         distribution_name='normal', param_a=0,
+                                                                         param_b=0, size=3))
+        q = Parameter('b', value_generator=DistributionFunctionGenerator(module_name='numpy.random',
+                                                                         distribution_name='normal', param_a=0,
+                                                                         param_b=0, size=3))
+
+        a = p() * q()
+        assert abs(stats.shapiro(a)[0] - 0.9) < 0.1
+
 
 if __name__ == '__main__':
     unittest.main()

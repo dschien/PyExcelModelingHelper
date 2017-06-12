@@ -12,7 +12,7 @@ __author__ = 'schien'
 
 param_name_map = {'variable': 'name', 'scenario': 'source_scenarios_string', 'module': 'module_name',
                   'distribution': 'distribution_name', 'param 1': 'param_a', 'param 2': 'param_b', 'param 3': 'param_c',
-                  'unit': '', 'CAGR': '', 'ref date': '', 'label': '', 'tags': '', 'comment': '', 'source': ''}
+                  'unit': '', 'CAGR': 'cagr', 'ref date': '', 'label': '', 'tags': '', 'comment': '', 'source': ''}
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -54,7 +54,12 @@ class Parameter(object):
         :param kwargs:
         :return:
         """
-        if not self.cache:
+        if self.cache is None:
+            kwargs['name'] = self.name
+            kwargs['unit'] = self.unit
+            kwargs['tags'] = self.tags
+            kwargs['scenario'] = self.scenario
+
             self.cache = self.value_generator.generate_values(*args, **kwargs)
         return self.cache
 
@@ -73,7 +78,17 @@ class DistributionFunctionGenerator(object):
         self.distribution_name = distribution_name
 
         # prepare function arguments
-        self.random_function_params = tuple([i for i in [param_a, param_b, param_c] if i])
+        if distribution_name == 'choice':
+            if type(param_a) == str:
+                tokens = param_a.split(',')
+                params = [float(token.strip()) for token in tokens]
+                self.random_function_params = [np.array(params, dtype=np.float)]
+            else:
+                self.random_function_params = [np.array([i for i in [param_a, param_b, param_c] if i], dtype=np.float)]
+
+            logging.debug(f'setting function params for choice distribution {self.random_function_params}')
+        else:
+            self.random_function_params = [i for i in [param_a, param_b, param_c] if i]
 
     def generate_values(self, *args, **kwargs):
         """
@@ -83,7 +98,8 @@ class DistributionFunctionGenerator(object):
         :return:
         """
         f = self.instantiate_distribution_function(self.module_name, self.distribution_name)
-        return f(*args if args else self.random_function_params, size=kwargs['size'] if 'size' in kwargs else self.size)
+
+        return f(*self.random_function_params, size=kwargs['size'] if 'size' in kwargs else self.size)
 
     @staticmethod
     def instantiate_distribution_function(module_name, distribution_name):
@@ -98,28 +114,13 @@ class ExponentialGrowthTimeSeriesGenerator(DistributionFunctionGenerator):
 
     def __init__(self, cagr=None, times=None, size=None, index_names=None, ref_date=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.cagr = cagr
+        self.cagr = cagr if cagr else 0
         self.ref_date = ref_date
         self.times = times
         self.size = size
         iterables = [times, range(0, size)]
         self._multi_index = pd.MultiIndex.from_product(iterables, names=index_names)
         assert type(times.freq) == pd.tseries.offsets.MonthBegin, 'Time index must have monthly frequency'
-
-    def __call__(self, *args, **kwargs):
-        """
-        Wraps the value in a dataframe
-        :param name:
-        :param kwargs:
-        :return:
-        """
-        df = self.generate_values()
-        df.set_index(self._multi_index, inplace=True)
-        df.columns = [self.name]
-        # @todo this is a hack to return a series with index as I don't know how to set an index and rename a series
-        data_series = df.ix[:, 0]
-        data_series._metadata = df._metadata
-        return data_series
 
     def generate_values(self, *args, **kwargs):
         """
@@ -143,8 +144,14 @@ class ExponentialGrowthTimeSeriesGenerator(DistributionFunctionGenerator):
         values *= a.ravel()
 
         df = pd.DataFrame(values)
-        # df._metadata = [options]
-        return df
+        df.columns = [kwargs['name']]
+        df.set_index(self._multi_index, inplace=True)
+        # @todo this is a hack to return a series with index as I don't know how to set an index and rename a series
+        data_series = df.iloc[:, 0]
+        data_series._metadata = kwargs
+        data_series.index.rename(['time', 'samples'], inplace=True)
+
+        return data_series
 
 
 def growth_coefficients(start_date, end_date, ref_date, alpha, samples):
@@ -264,6 +271,11 @@ class ParameterRepository(object):
         :param param:
         :return:
         """
+        if not self.exists(param.name) or not ParameterScenarioSet.default_scenario in self.parameter_sets[
+            param.name].scenarios.keys():
+            logging.warning(
+                f'No default value for param {param.name} found.')
+            return
         default = self.parameter_sets[param.name][ParameterScenarioSet.default_scenario]
         for att_name, att_value in default.__dict__.items():
             if att_name in ['unit', 'label', 'comment', 'source', 'tags']:
@@ -280,11 +292,19 @@ class ParameterRepository(object):
                     setattr(param, att_name, att_value)
 
     def __getitem__(self, item):
+        """
+        Return the default scenario parameter for a given variable name
+        :param item: the name of the variable
+        :return:
+        """
         return self.parameter_sets[item][ParameterScenarioSet.default_scenario]
 
     def get_parameter(self, param_name, scenario_name=None):
-        return self.parameter_sets[param_name][
-            scenario_name if scenario_name else ParameterScenarioSet.default_scenario]
+        scenario = scenario_name if scenario_name else ParameterScenarioSet.default_scenario
+        try:
+            return self.parameter_sets[param_name][scenario]
+        except KeyError:
+            raise KeyError(f"{param_name} for scenario {scenario} not found")
 
     def find_by_tag(self, tag) -> Dict[str, Set[Parameter]]:
         """
@@ -303,8 +323,8 @@ class ParameterRepository(object):
 class ExcelParameterLoader(object):
     def __init__(self, filename, times=None, size=None, **kwargs):
         self.size = size
-        if times is not None and size is None or times is None and size is not None:
-            raise Exception('Both times and size arg must be set at the same time. Or none.')
+        if times is not None and size is None:
+            raise Exception('Both times and size arg must be set at the same time.')
         self.times = times
         self.filename = filename
 
@@ -316,13 +336,16 @@ class ExcelParameterLoader(object):
         """
         definitions = []
 
-        wb = load_workbook(filename=self.filename)
+        wb = load_workbook(filename=self.filename, data_only=True)
         _sheet_names = [sheet_name] if sheet_name else wb.sheetnames
 
         for _sheet_name in _sheet_names:
             sheet = wb.get_sheet_by_name(_sheet_name)
             rows = list(sheet.rows)
             header = [cell.value for cell in rows[0]]
+
+            if header[0] != 'variable':
+                continue
 
             for row in rows[1:]:
                 values = {}
@@ -342,6 +365,7 @@ class ExcelParameterLoader(object):
         repository.add_all(self.load_parameters(sheet_name))
 
     def load_parameters(self, sheet_name):
+
         parameter_definitions = self.load_parameter_definitions(sheet_name=sheet_name)
         params = []
         for _def in parameter_definitions:
@@ -350,16 +374,17 @@ class ExcelParameterLoader(object):
             # e.g. 'variable' -> 'name', 'module' -> 'module_name', etc
             parameter_kwargs_def = {}
             for k, v in _def.items():
-                if param_name_map[k]:
-                    parameter_kwargs_def[param_name_map[k]] = v
-                else:
-                    parameter_kwargs_def[k] = v
+                if k in param_name_map:
+                    if param_name_map[k]:
+                        parameter_kwargs_def[param_name_map[k]] = v
+                    else:
+                        parameter_kwargs_def[k] = v
 
             if self.times is not None:
                 generator = ExponentialGrowthTimeSeriesGenerator(times=self.times,
                                                                  size=self.size, **parameter_kwargs_def)
             else:
-                generator = DistributionFunctionGenerator(**parameter_kwargs_def)
+                generator = DistributionFunctionGenerator(**parameter_kwargs_def, size=self.size)
 
             name_ = parameter_kwargs_def['name']
             del parameter_kwargs_def['name']

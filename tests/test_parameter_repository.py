@@ -117,6 +117,19 @@ class ParameterRepositoryTestCase(unittest.TestCase):
         Test that tag values in scenarios are being overwritten with defaults.
         :return:
         """
+        parameter_kwargs_def = {'tags': 't1,t2', 'unit': 'kg'}
+
+        p = Parameter('test', **parameter_kwargs_def)
+
+        del parameter_kwargs_def['unit']
+        parameter_kwargs_def = {'tags': 't1,t3', 'unit': 'kg'}
+        ps = Parameter('test', source_scenarios_string='s1,s2', **parameter_kwargs_def)
+
+        repo = ParameterRepository()
+        repo.add_parameter(p)
+        repo.add_parameter(ps)
+
+        assert repo.get_parameter('test', 's1').tags == 't1,t2'
 
 
 if __name__ == '__main__':
