@@ -44,20 +44,50 @@ class ParameterTestCase(unittest.TestCase):
 
     def test_get_mean_uniform(self):
         p = Parameter('a', value_generator=DistributionFunctionGenerator(module_name='numpy.random',
-                                                                         distribution_name='normal', param_a=3,
+                                                                         distribution_name='uniform', param_a=2,
                                                                          param_b=4, size=3, sample_mean_value=True))
         val = p()
         print(val)
         assert (val == 3).all()
 
+    def test_get_mean_normal_timeseries(self):
+        p = Parameter('test', value_generator=ExponentialGrowthTimeSeriesGenerator(module_name='numpy.random',
+                                                                                   distribution_name='normal',
+                                                                                   param_a=3.,
+                                                                                   param_b=.1,
+                                                                                   times=pd.date_range('2009-01-01',
+                                                                                                       '2009-03-01',
+                                                                                                       freq='MS'),
+                                                                                   size=5,
+                                                                                   cagr=0,
+                                                                                   sample_mean_value=True
+                                                                                   ))
+        val = p()
+        assert (val == 3).all()
+
     def test_get_mean_normal(self):
-        assert False
+        p = Parameter('a', value_generator=DistributionFunctionGenerator(module_name='numpy.random',
+                                                                         distribution_name='normal', param_a=3,
+                                                                         param_b=4, size=3, sample_mean_value=True))
+        val = p()
+        # print(val)
+        assert (val == 3).all()
 
     def test_get_mean_choice(self):
-        assert False
+        p = Parameter('a', value_generator=DistributionFunctionGenerator(module_name='numpy.random',
+                                                                         distribution_name='choice', param_a=3,
+                                                                         param_b=4, size=3, sample_mean_value=True))
+        val = p()
+        # print(val)
+        assert (val == 3).all()
 
     def test_get_mean_numerically(self):
-        assert False
+        p = Parameter('a', value_generator=DistributionFunctionGenerator(module_name='numpy.random',
+                                                                         distribution_name='normal', param_a=3,
+                                                                         param_b=4, size=3, sample_mean_value=True))
+        val = p()
+        # print(val)
+        assert (val == 3).all()
 
 
 if __name__ == '__main__':
