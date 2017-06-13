@@ -2,3 +2,5 @@
 dist
 excel_modelling_helper.egg-info
 tests/~$test.xlsx
+*.DS_STORE
+__pycache__/
