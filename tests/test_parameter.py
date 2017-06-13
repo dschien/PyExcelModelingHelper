@@ -1,7 +1,8 @@
 import unittest
 
 import pandas as pd
-from excel_helper import Parameter, DistributionFunctionGenerator, ExponentialGrowthTimeSeriesGenerator
+from excel_helper import Parameter, DistributionFunctionGenerator, ExponentialGrowthTimeSeriesGenerator, \
+    ParameterRepository, ExcelParameterLoader
 from scipy import stats
 
 
@@ -40,6 +41,23 @@ class ParameterTestCase(unittest.TestCase):
 
         a = p() * q()
         assert abs(stats.shapiro(a)[0] - 0.9) < 0.1
+
+    def test_get_mean_uniform(self):
+        p = Parameter('a', value_generator=DistributionFunctionGenerator(module_name='numpy.random',
+                                                                         distribution_name='normal', param_a=3,
+                                                                         param_b=4, size=3, sample_mean_value=True))
+        val = p()
+        print(val)
+        assert (val == 3).all()
+
+    def test_get_mean_normal(self):
+        assert False
+
+    def test_get_mean_choice(self):
+        assert False
+
+    def test_get_mean_numerically(self):
+        assert False
 
 
 if __name__ == '__main__':

@@ -1,12 +1,15 @@
 import importlib
+from abc import abstractmethod
 from collections import defaultdict
 from typing import Dict, List, Set
 
 import numpy as np
 import pandas as pd
+import xlrd
 from dateutil import relativedelta as rdelta
 from openpyxl import load_workbook
 import logging
+from functools import partial
 
 __author__ = 'schien'
 
@@ -73,10 +76,21 @@ class DistributionFunctionGenerator(object):
 
     def __init__(self, module_name=None, distribution_name=None, param_a: float = None,
                  param_b: float = None, param_c: float = None, size=None, **kwargs):
+        """
+        Instantiate a new object.
+
+        :param module_name:
+        :param distribution_name:
+        :param param_a:
+        :param param_b:
+        :param param_c:
+        :param size:
+        :param kwargs: can contain key "sample_mean_value" with bool value
+        """
         self.size = size
         self.module_name = module_name
         self.distribution_name = distribution_name
-
+        self.sample_mean_value = kwargs.get('sample_mean_value', False)
         # prepare function arguments
         if distribution_name == 'choice':
             if type(param_a) == str:
@@ -90,16 +104,48 @@ class DistributionFunctionGenerator(object):
         else:
             self.random_function_params = [i for i in [param_a, param_b, param_c] if i]
 
+    def get_mean(self, distribution_function):
+        """Get the mean value for a distribution.
+        If the distribution function is [normal, uniform,choice,triangular] the analytic value is being calculted.
+        Else, the distribution is instantiated and then the mean is being calculated.
+
+        :param distribution_function:
+        :return: the mean as a scalar
+        """
+        name = self.distribution_name
+        if name == 'normal':
+            return self.random_function_params[0]
+        if name == 'uniform':
+            return (self.random_function_params[0] + self.random_function_params[1]) / 2
+        if name == 'choice':
+            return self.random_function_params[0]
+        if name == 'triangular':
+            return (
+                       self.random_function_params[0] + self.random_function_params[1] + self.random_function_params[
+                           2]) / 3
+        return distribution_function().mean()
+
     def generate_values(self, *args, **kwargs):
         """
-        Generate values by sampling from a distribution. The size of the sample can be overriden with the 'size' kwarg.
+        Generate a sample of values by sampling from a distribution. The size of the sample can be overriden with the 'size' kwarg.
+
+        If `self.sample_mean_value == True` the sample will contain "size" times the mean value.
+
         :param args:
         :param kwargs:
-        :return:
+        :return: sample as vector of given size
         """
-        f = self.instantiate_distribution_function(self.module_name, self.distribution_name)
+        sample_size = kwargs.get('size', self.size)
 
-        return f(*self.random_function_params, size=kwargs['size'] if 'size' in kwargs else self.size)
+        f = self.instantiate_distribution_function(self.module_name, self.distribution_name)
+        distribution_function = partial(f, *self.random_function_params, size=sample_size)
+
+        if self.sample_mean_value:
+            sample = np.full(sample_size, self.get_mean(distribution_function))
+        else:
+            sample = distribution_function()
+
+        return sample
 
     @staticmethod
     def instantiate_distribution_function(module_name, distribution_name):
@@ -320,25 +366,17 @@ class ParameterRepository(object):
         return param in self.parameter_sets.keys()
 
 
-class ExcelParameterLoader(object):
-    def __init__(self, filename, times=None, size=None, **kwargs):
-        self.size = size
-        if times is not None and size is None:
-            raise Exception('Both times and size arg must be set at the same time.')
-        self.times = times
-        self.filename = filename
+class ExcelHandler(object):
+    @abstractmethod
+    def load_definitions(self, sheet_name, filename=None):
+        raise NotImplementedError()
 
-    def load_parameter_definitions(self, sheet_name: str = None):
-        """
-        Load variable text from rows in excel file.
-        :param sheet_name:
-        :return:
-        """
+
+class OpenpyxlExcelHandler(ExcelHandler):
+    def load_definitions(self, sheet_name, filename=None):
         definitions = []
-
-        wb = load_workbook(filename=self.filename, data_only=True)
+        wb = load_workbook(filename=filename, data_only=True)
         _sheet_names = [sheet_name] if sheet_name else wb.sheetnames
-
         for _sheet_name in _sheet_names:
             sheet = wb.get_sheet_by_name(_sheet_name)
             rows = list(sheet.rows)
@@ -352,6 +390,26 @@ class ExcelParameterLoader(object):
                 for key, cell in zip(header, row):
                     values[key] = cell.value
                 definitions.append(values)
+        return definitions
+
+
+class ExcelParameterLoader(object):
+    def __init__(self, filename, times=None, size=None, excel_handler='openpyxl', **kwargs):
+        self.size = size
+        if times is not None and size is None:
+            raise Exception('Both times and size arg must be set at the same time.')
+        self.times = times
+        self.filename = filename
+        self.excel_handler: ExcelHandler = OpenpyxlExcelHandler() if excel_handler == 'openpyxl' else None
+        self.sample_mean_value = kwargs.get('sample_mean_value', False)
+
+    def load_parameter_definitions(self, sheet_name: str = None):
+        """
+        Load variable text from rows in excel file.
+        :param sheet_name:
+        :return:
+        """
+        definitions = self.excel_handler.load_definitions(sheet_name, filename=self.filename)
 
         return definitions
 
@@ -380,11 +438,14 @@ class ExcelParameterLoader(object):
                     else:
                         parameter_kwargs_def[k] = v
 
+            common_args = {'size': self.size,
+                           'sample_mean_value': self.sample_mean_value, }
+            common_args.update(**parameter_kwargs_def)
+
             if self.times is not None:
-                generator = ExponentialGrowthTimeSeriesGenerator(times=self.times,
-                                                                 size=self.size, **parameter_kwargs_def)
+                generator = ExponentialGrowthTimeSeriesGenerator(**common_args, times=self.times)
             else:
-                generator = DistributionFunctionGenerator(**parameter_kwargs_def, size=self.size)
+                generator = DistributionFunctionGenerator(**common_args)
 
             name_ = parameter_kwargs_def['name']
             del parameter_kwargs_def['name']
