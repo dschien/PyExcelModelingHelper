@@ -79,7 +79,7 @@ class ParameterTestCase(unittest.TestCase):
                                                                          param_b=4, size=3, sample_mean_value=True))
         val = p()
         # print(val)
-        assert (val == 3).all()
+        assert (val == 3.5).all()
 
     def test_get_mean_numerically(self):
         p = Parameter('a', value_generator=DistributionFunctionGenerator(module_name='numpy.random',

@@ -117,7 +117,7 @@ class DistributionFunctionGenerator(object):
         if name == 'uniform':
             return (self.random_function_params[0] + self.random_function_params[1]) / 2
         if name == 'choice':
-            return self.random_function_params[0]
+            return self.random_function_params[0].mean()
         if name == 'triangular':
             return (
                        self.random_function_params[0] + self.random_function_params[1] + self.random_function_params[
