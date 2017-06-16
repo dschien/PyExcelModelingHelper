@@ -14,6 +14,9 @@ import itertools
 import operator
 from openpyxl.utils.datetime import from_excel
 import xlrd
+
+from excel_helper import growth_coefficients
+from openpyxl.utils.datetime import from_excel
 import pandas as pd
 import numpy as np
 
@@ -98,6 +101,13 @@ class ParameterLoader(object):
         return cls(rows, size, **kwargs)
 
     def __init__(self, rows, size, **kwargs):
+        """
+        Rows is a list of tuples.
+
+        :param rows:
+        :param size:
+        :param kwargs:
+        """
         self.kwargs = kwargs
         self.data = defaultdict(list)
 
@@ -113,6 +123,8 @@ class ParameterLoader(object):
             self.cache = defaultdict(dict)
 
         self.scenario = DEFAULT_SCENARIO
+
+        self.sample_mean_value = kwargs.get('sample_mean_value', False)
 
     def select_scenario(self, scenario):
         self.scenario = scenario
@@ -144,6 +156,9 @@ class ParameterLoader(object):
         X = f(*p, size=size)
         if type(X) is not float:
             X = X.astype('f')
+
+        if self.sample_mean_value:
+            return np.full(size, get_analytical_mean(options, X))
 
         if SINGLE_VAR in self.kwargs:
 
@@ -331,7 +346,7 @@ class DataSeriesLoader(ParameterLoader):
         return cls(df.where((pd.notnull(df)), None).values, times, index_names, size, **kwargs)
 
     def __init__(self, rows, times, index_names, size, **kwargs):
-        super(DataSeriesLoader, self).__init__(rows, size)
+        super(DataSeriesLoader, self).__init__(rows, size, **kwargs)
         self.kwargs = kwargs
         # single var variability is on by default
         self.with_single_var_cagr = kwargs['with_single_var_cagr'] if 'with_single_var_cagr' in kwargs else True
@@ -463,6 +478,10 @@ class DataSeriesLoaderDataSource(LoaderDataSource):
         return super(DataSeriesLoaderDataSource, self).get_loader(**kwargs)
 
 
+# @todo - this is a terrible hack, iron this out...
+loader_cache = defaultdict(dict)
+
+
 class ExcelSeriesLoaderDataSource(ExcelLoaderMixin, DataSeriesLoaderDataSource):
     """
     Load data from excel.
@@ -479,8 +498,14 @@ class ExcelSeriesLoaderDataSource(ExcelLoaderMixin, DataSeriesLoaderDataSource):
         self.kwargs = kwargs
 
     def get_loader(self, **kwargs):
-        return DataSeriesLoader.from_excel(self.file, self.times, self.size, self.sheet_index, self.sheet_name,
-                                           self.index_names, **kwargs)
+
+        if not self.file in loader_cache or self.sheet_name not in loader_cache[self.file]:
+            loader_cache[self.file][self.sheet_name] = DataSeriesLoader.from_excel(self.file, self.times, self.size,
+                                                                                   self.sheet_index, self.sheet_name,
+                                                                                   self.index_names, **kwargs,
+                                                                                   **self.kwargs)
+
+        return loader_cache[self.file][self.sheet_name]
 
 
 class DataFrameLoaderDataSource(DataSeriesLoaderDataSource):
