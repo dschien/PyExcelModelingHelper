@@ -12,9 +12,9 @@ from collections import defaultdict
 import importlib
 import itertools
 import operator
-from typing import Dict
+from openpyxl.utils.datetime import from_excel
+import xlrd
 
-import openpyxl
 from excel_helper import growth_coefficients
 from openpyxl.utils.datetime import from_excel
 import pandas as pd
@@ -94,9 +94,9 @@ class ParameterLoader(object):
     """
 
     @classmethod
-    def from_excel(cls, file, size=1, sheet_name=None, **kwargs):
+    def from_excel(cls, file, size=1, sheet_index=None, sheet_name=None, **kwargs):
         """Initialize from an excel file"""
-        rows = openpyxl.load_workbook(file, sheet_name)
+        rows = load_workbook(file, sheet_index, sheet_name)
 
         return cls(rows, size, **kwargs)
 
@@ -123,6 +123,8 @@ class ParameterLoader(object):
             self.cache = defaultdict(dict)
 
         self.scenario = DEFAULT_SCENARIO
+
+        self.sample_mean_value = kwargs.get('sample_mean_value', False)
 
     def select_scenario(self, scenario):
         self.scenario = scenario
@@ -154,6 +156,9 @@ class ParameterLoader(object):
         X = f(*p, size=size)
         if type(X) is not float:
             X = X.astype('f')
+
+        if self.sample_mean_value:
+            return np.full(size, get_analytical_mean(options, X))
 
         if SINGLE_VAR in self.kwargs:
 
@@ -218,7 +223,7 @@ class ParameterLoader(object):
         return self.get_val(name)
 
 
-def load_workbook(file, sheet_name=None):
+def load_workbook(file, sheet_index=None, sheet_name=None):
     """
     Build a list of tuples from the columns of the excel table.
 
@@ -229,12 +234,12 @@ def load_workbook(file, sheet_name=None):
         (col1,col2,...),
     ]
     """
-    wb = load_workbook(file)
+    wb = xlrd.open_workbook(file)
     sh = None
     if sheet_name is not None:
-        sh = wb[sheet_name]
-    # if sheet_index is not None:
-    #     sh = wb.sheet_by_index(sheet_index)
+        sh = wb.sheet_by_name(sheet_name)
+    if sheet_index is not None:
+        sh = wb.sheet_by_index(sheet_index)
     if not sh:
         raise Exception('Must provide either sheet name or sheet index')
 
@@ -289,6 +294,32 @@ def get_random_variable_definition(row):
     return func, params, options
 
 
+def growth_coefficients(start_date, end_date, ref_date, alpha, samples):
+    """
+    Build a matrix of growth factors according to the CAGR formula  y'=y0 (1+a)^(t'-t0).
+    The
+    """
+    if ref_date < start_date:
+        raise ValueError("Ref data must be >= start date.")
+    if ref_date > end_date:
+        raise ValueError("Ref data must be >= start date.")
+    if ref_date > start_date and alpha >= 1:
+        raise ValueError("For a CAGR >= 1, ref date and start date must be the same.")
+    # relative delta will be positive if ref date is >= start date (which it should with above assertions)
+    delta_ar = rdelta.relativedelta(ref_date, start_date)
+    ar = delta_ar.months + 12 * delta_ar.years
+    delta_br = rdelta.relativedelta(end_date, ref_date)
+    br = delta_br.months + 12 * delta_br.years
+
+    # we place the ref point on the lower interval (delta_ar + 1) but let it start from 0
+    # in turn we let the upper interval start from 1
+    g = np.fromfunction(lambda i, j: np.power(1 - alpha, np.abs(i) / 12), (ar + 1, samples), dtype=float)
+    h = np.fromfunction(lambda i, j: np.power(1 + alpha, np.abs(i + 1) / 12), (br, samples), dtype=float)
+    g = np.flipud(g)
+    # now join the two arrays
+    return np.vstack((g, h))
+
+
 class DataSeriesLoader(ParameterLoader):
     """
     A dataloader that supports timelines.
@@ -315,7 +346,7 @@ class DataSeriesLoader(ParameterLoader):
         return cls(df.where((pd.notnull(df)), None).values, times, index_names, size, **kwargs)
 
     def __init__(self, rows, times, index_names, size, **kwargs):
-        super(DataSeriesLoader, self).__init__(rows, size)
+        super(DataSeriesLoader, self).__init__(rows, size, **kwargs)
         self.kwargs = kwargs
         # single var variability is on by default
         self.with_single_var_cagr = kwargs['with_single_var_cagr'] if 'with_single_var_cagr' in kwargs else True
@@ -447,6 +478,10 @@ class DataSeriesLoaderDataSource(LoaderDataSource):
         return super(DataSeriesLoaderDataSource, self).get_loader(**kwargs)
 
 
+# @todo - this is a terrible hack, iron this out...
+loader_cache = defaultdict(dict)
+
+
 class ExcelSeriesLoaderDataSource(ExcelLoaderMixin, DataSeriesLoaderDataSource):
     """
     Load data from excel.
@@ -463,8 +498,14 @@ class ExcelSeriesLoaderDataSource(ExcelLoaderMixin, DataSeriesLoaderDataSource):
         self.kwargs = kwargs
 
     def get_loader(self, **kwargs):
-        return DataSeriesLoader.from_excel(self.file, self.times, self.size, self.sheet_index, self.sheet_name,
-                                           self.index_names, **kwargs)
+
+        if not self.file in loader_cache or self.sheet_name not in loader_cache[self.file]:
+            loader_cache[self.file][self.sheet_name] = DataSeriesLoader.from_excel(self.file, self.times, self.size,
+                                                                                   self.sheet_index, self.sheet_name,
+                                                                                   self.index_names, **kwargs,
+                                                                                   **self.kwargs)
+
+        return loader_cache[self.file][self.sheet_name]
 
 
 class DataFrameLoaderDataSource(DataSeriesLoaderDataSource):
