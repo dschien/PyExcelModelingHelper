@@ -6,6 +6,29 @@ from excel_helper import ExcelParameterLoader, ParameterRepository
 
 
 class ExcelParameterLoaderTestCase(unittest.TestCase):
+    def test_load_xlwings(self):
+        repository = ParameterRepository()
+        ExcelParameterLoader(filename='./test.xlsx', excel_handler='xlwings').load_into_repo(sheet_name='Sheet1',
+                                                                                             repository=repository)
+        p = repository.get_parameter('a')
+        assert p() in [4, 2]
+
+    def test_load_xlrd(self):
+        repository = ParameterRepository()
+        ExcelParameterLoader(filename='./test.xlsx', excel_handler='xlrd').load_into_repo(sheet_name='Sheet1',
+                                                                                          repository=repository)
+        p = repository.get_parameter('a')
+        assert p() in [4, 2]
+
+    def test_load_xlrd_formula(self):
+        repository = ParameterRepository()
+        ExcelParameterLoader(filename='./test.xlsx', excel_handler='xlrd').load_into_repo(sheet_name='Sheet1',
+                                                                                          repository=repository)
+        p = repository.get_parameter('e')
+        val = p()
+        print(val)
+        assert val > 0.7
+
     def test_load_by_sheetname(self):
         defs = ExcelParameterLoader(filename='./test_excelparameterloader.xlsx').load_parameter_definitions(
             sheet_name='Sheet1')
@@ -132,7 +155,26 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
         assert (res < 10.).all() & (res > 3.).all()
 
     def test_normal(self):
-        pass
+        repository = ParameterRepository()
+        ExcelParameterLoader(filename='./test.xlsx', excel_handler='xlwings').load_into_repo(sheet_name='Sheet1',
+                                                                                             repository=repository)
+        print('\n')
+        p = repository['e']
+        print(p.value_generator.random_function_params)
+        val = p()
+        print(val)
+
+    def test_normal_timeseries(self):
+        repository = ParameterRepository()
+        ExcelParameterLoader(filename='./test.xlsx',
+                             times=pd.date_range('2009-01-01', '2015-05-01', freq='MS'), size=10
+                             ).load_into_repo(sheet_name='Sheet1', repository=repository)
+
+        p = repository.get_parameter('e')
+
+        res = p()
+
+        assert (res < 10.).all() & (res > 3.).all()
 
     def test_formulas_fix_row(self):
         repository = ParameterRepository()
@@ -166,10 +208,10 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
         repository = ParameterRepository()
         # ExcelParameterLoader(filename='/Users/csxds/Downloads/public_model_params.xlsx-4.xlsx',
         ExcelParameterLoader(filename='/Users/csxds/workspaces/bbc/ngmodel/data/tmp/public_model_params.xlsx',
-                             times=pd.date_range('2009-01-01', '2015-05-01', freq='MS'), size=10
+                             times=pd.date_range('2009-01-01', '2015-05-01', freq='MS'), size=10, excel_handler='xlwings'
                              ).load_into_repo(sheet_name='Distribution', repository=repository)
 
-        p = repository.get_parameter('energy_intensity_core_network')
+        p = repository.get_parameter('embodied_carbon_intensity_per_dv')
 
         res = p()
         print(res.mean())

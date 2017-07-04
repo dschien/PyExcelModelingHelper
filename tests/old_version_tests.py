@@ -49,9 +49,10 @@ class TestExcelTool(unittest.TestCase):
 
     def test_cache(self):
         data = ParameterLoader.from_excel('test.xlsx', size=1, sheet_index=0)
-        data['a'][0]
+        print(data['a'])
+
         res = data['a'][0]
-        assert res == 1.
+        assert res == 4.
 
     def test_set_scenarios(self):
         data = ParameterLoader.from_excel('test.xlsx', size=1, sheet_index=0)
