@@ -16,54 +16,8 @@ param_name_map = {'variable': 'name', 'scenario': 'source_scenarios_string', 'mo
                   'distribution': 'distribution_name', 'param 1': 'param_a', 'param 2': 'param_b', 'param 3': 'param_c',
                   'unit': '', 'CAGR': 'cagr', 'ref date': '', 'label': '', 'tags': '', 'comment': '', 'source': ''}
 
-logging.basicConfig(level=logging.DEBUG)
-
-
-class Parameter(object):
-    """
-    A single parameter
-    """
-
-    name: str
-    unit: str
-    comment: str
-    source: str
-    scenario: str
-
-    "optional comma-separated list of tags"
-    tags: str
-
-    def __init__(self, name, value_generator=None, tags=None, source_scenarios_string: str = None, unit: str = None,
-                 comment: str = None, source: str = None,
-                 **kwargs):
-        # The source definition of scenarios. A comma-separated list
-        self.source = source
-        self.comment = comment
-
-        self.unit = unit
-        self.source_scenarios_string = source_scenarios_string
-        self.tags = tags
-        self.name = name
-        self.value_generator = value_generator
-
-        self.scenario = None
-        self.cache = None
-
-    def __call__(self, *args, **kwargs):
-        """
-        Returns the same value everytime called.
-        :param args:
-        :param kwargs:
-        :return:
-        """
-        if self.cache is None:
-            kwargs['name'] = self.name
-            kwargs['unit'] = self.unit
-            kwargs['tags'] = self.tags
-            kwargs['scenario'] = self.scenario
-
-            self.cache = self.value_generator.generate_values(*args, **kwargs)
-        return self.cache
+# logger.basicConfig(level=logger.DEBUG)
+logger = logging.getLogger(__name__)
 
 
 class DistributionFunctionGenerator(object):
@@ -99,7 +53,7 @@ class DistributionFunctionGenerator(object):
             else:
                 self.random_function_params = [np.array([i for i in [param_a, param_b, param_c] if i], dtype=np.float)]
 
-            logging.debug(f'setting function params for choice distribution {self.random_function_params}')
+            logger.debug(f'setting function params for choice distribution {self.random_function_params}')
         else:
             self.random_function_params = [i for i in [param_a, param_b, param_c] if i]
 
@@ -151,6 +105,55 @@ class DistributionFunctionGenerator(object):
         module = importlib.import_module(module_name)
         func = getattr(module, distribution_name)
         return func
+
+
+class Parameter(object):
+    """
+    A single parameter
+    """
+
+    name: str
+    unit: str
+    comment: str
+    source: str
+    scenario: str
+
+    "optional comma-separated list of tags"
+    tags: str
+    value_generator: DistributionFunctionGenerator
+
+    def __init__(self, name, value_generator: DistributionFunctionGenerator = None, tags=None,
+                 source_scenarios_string: str = None, unit: str = None,
+                 comment: str = None, source: str = None,
+                 **kwargs):
+        # The source definition of scenarios. A comma-separated list
+        self.source = source
+        self.comment = comment
+
+        self.unit = unit
+        self.source_scenarios_string = source_scenarios_string
+        self.tags = tags
+        self.name = name
+        self.value_generator = value_generator
+
+        self.scenario = None
+        self.cache = None
+
+    def __call__(self, *args, **kwargs):
+        """
+        Returns the same value everytime called.
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        if self.cache is None:
+            kwargs['name'] = self.name
+            kwargs['unit'] = self.unit
+            kwargs['tags'] = self.tags
+            kwargs['scenario'] = self.scenario
+
+            self.cache = self.value_generator.generate_values(*args, **kwargs)
+        return self.cache
 
 
 class ExponentialGrowthTimeSeriesGenerator(DistributionFunctionGenerator):
@@ -318,7 +321,7 @@ class ParameterRepository(object):
         """
         if not self.exists(param.name) or not ParameterScenarioSet.default_scenario in self.parameter_sets[
             param.name].scenarios.keys():
-            logging.warning(
+            logger.warning(
                 f'No default value for param {param.name} found.')
             return
         default = self.parameter_sets[param.name][ParameterScenarioSet.default_scenario]
@@ -326,25 +329,25 @@ class ParameterRepository(object):
             if att_name in ['unit', 'label', 'comment', 'source', 'tags']:
 
                 if att_name == 'tags' and default.tags != param.tags:
-                    logging.warning(
+                    logger.warning(
                         f'For param {param.name} for scenarios {param.source_scenarios_string}, tags is different from default parameter tags. Overwriting with default values.')
                     setattr(param, att_name, att_value)
 
                 if not getattr(param, att_name):
-                    logging.info(
+                    logger.info(
                         f'For param {param.name} for scenarios {param.source_scenarios_string}, populating attribute {att_name} with value {att_value} from default parameter.')
 
                     setattr(param, att_name, att_value)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item) -> Parameter:
         """
         Return the default scenario parameter for a given variable name
         :param item: the name of the variable
         :return:
         """
-        return self.parameter_sets[item][ParameterScenarioSet.default_scenario]
+        return self.get_parameter(item, scenario_name=ParameterScenarioSet.default_scenario)
 
-    def get_parameter(self, param_name, scenario_name=None):
+    def get_parameter(self, param_name, scenario_name=None) -> Parameter:
         scenario = scenario_name if scenario_name else ParameterScenarioSet.default_scenario
         try:
             return self.parameter_sets[param_name][scenario]
@@ -392,6 +395,67 @@ class OpenpyxlExcelHandler(ExcelHandler):
         return definitions
 
 
+class XLRDExcelHandler(ExcelHandler):
+    @staticmethod
+    def get_sheet_range_bounds(filename, sheet_name):
+        import xlrd
+        wb = xlrd.open_workbook(filename)
+        sheet = wb.sheet_by_name(sheet_name)
+        rows = list(sheet.get_rows())
+        return len(rows)
+
+    def load_definitions(self, sheet_name, filename=None):
+        import xlrd
+        wb = xlrd.open_workbook(filename)
+        sh = None
+
+        definitions = []
+
+        _sheet_names = [sheet_name] if sheet_name else [sh.name for sh in wb.sheets()]
+
+        for _sheet_name in _sheet_names:
+            sheet = wb.sheet_by_name(_sheet_name)
+            rows = list(sheet.get_rows())
+            header = [cell.value for cell in rows[0]]
+
+            if header[0] != 'variable':
+                continue
+
+            for row in rows[1:]:
+                values = {}
+                for key, cell in zip(header, row):
+                    values[key] = cell.value
+                definitions.append(values)
+        return definitions
+
+
+class XLWingsExcelHandler(ExcelHandler):
+    def load_definitions(self, sheet_name, filename=None):
+        import xlwings as xw
+        definitions = []
+        wb = xw.Book(fullname=filename)
+        _sheet_names = [sheet_name] if sheet_name else wb.sheets
+        for _sheet_name in _sheet_names:
+            sheet = wb.sheets[_sheet_name]
+            range = sheet.range('A1').expand()
+            rows = range.rows
+            header = [cell.value for cell in rows[0]]
+
+            # check if this sheet contains parameters or if it documentation
+            if header[0] != 'variable':
+                continue
+
+            total_rows = XLRDExcelHandler.get_sheet_range_bounds(filename, _sheet_name)
+            range = sheet.range((1, 1), (total_rows, len(header)))
+            rows = range.rows
+            for row in rows[1:]:
+                values = {}
+                for key, cell in zip(header, row):
+                    values[key] = cell.value
+                definitions.append(values)
+        return definitions
+
+
 class ExcelParameterLoader(object):
     """Utility to populate ParameterRepository from spreadsheets.
 
@@ -404,13 +468,24 @@ class ExcelParameterLoader(object):
         If the first row in a spreadsheet does not contain they keyword 'variable' the sheet is ignored.
 
        """
-    def __init__(self, filename, times=None, size=None,excel_handler='openpyxl',  **kwargs):
+
+    def __init__(self, filename, times=None, size=None, excel_handler='openpyxl', **kwargs):
         self.size = size
         if times is not None and size is None:
             raise Exception('Both times and size arg must be set at the same time.')
         self.times = times
         self.filename = filename
-        self.excel_handler: ExcelHandler = OpenpyxlExcelHandler() if excel_handler == 'openpyxl' else None
+
+        logger.info(f'Using {excel_handler} excel handler')
+        excel_handler_instance = None
+        if excel_handler == 'openpyxl':
+            excel_handler_instance = OpenpyxlExcelHandler()
+        if excel_handler == 'xlwings':
+            excel_handler_instance = XLWingsExcelHandler()
+        if excel_handler == 'xlrd':
+            excel_handler_instance = XLRDExcelHandler()
+
+        self.excel_handler: ExcelHandler = excel_handler_instance
         self.sample_mean_value = kwargs.get('sample_mean_value', False)
 
     def load_parameter_definitions(self, sheet_name: str = None):
