@@ -4,3 +4,5 @@
 18.4.2016   0.2.7   Added new flag 'single_var' to freeze all variables except one to their mean value - use in sensitivity analysis.
 19.8.2016   0.3.0   Upgrade to xarray 0.8.1
 20.8.2016   0.3.1   Single var mean now analytical for choice, uniform, triangular and normal; trim white space from var names
+4.07.2017   0.4.0   Rewrite with new API
+4.07.2017   0.4.1   Added XLWings interface to read from Excel

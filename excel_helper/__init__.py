@@ -1,3 +1,4 @@
+import csv
 import importlib
 from abc import abstractmethod
 from collections import defaultdict
@@ -9,6 +10,8 @@ from dateutil import relativedelta as rdelta
 from openpyxl import load_workbook
 import logging
 from functools import partial
+
+from xlsx2csv import Xlsx2csv
 
 __author__ = 'schien'
 
@@ -120,10 +123,8 @@ class Parameter(object):
 
     "optional comma-separated list of tags"
     tags: str
-    value_generator: DistributionFunctionGenerator
 
-    def __init__(self, name, value_generator: DistributionFunctionGenerator = None, tags=None,
-                 source_scenarios_string: str = None, unit: str = None,
+    def __init__(self, name, tags=None, source_scenarios_string: str = None, unit: str = None,
                  comment: str = None, source: str = None,
                  **kwargs):
         # The source definition of scenarios. A comma-separated list
@@ -134,14 +135,15 @@ class Parameter(object):
         self.source_scenarios_string = source_scenarios_string
         self.tags = tags
         self.name = name
-        self.value_generator = value_generator
 
         self.scenario = None
         self.cache = None
 
-    def __call__(self, *args, **kwargs):
+        self.kwargs = kwargs
+
+    def __call__(self, settings=None, *args, **kwargs):
         """
-        Returns the same value everytime called.
+        Returns the same value every time called.
         :param args:
         :param kwargs:
         :return:
@@ -152,7 +154,19 @@ class Parameter(object):
             kwargs['tags'] = self.tags
             kwargs['scenario'] = self.scenario
 
-            self.cache = self.value_generator.generate_values(*args, **kwargs)
+            if not settings:
+                settings = {}
+
+            common_args = {'size': settings.get('sample_size', 1),
+                           'sample_mean_value': settings.get('sample_mean_value', False)}
+            common_args.update(**self.kwargs)
+
+            if settings.get('use_time_series', False):
+                generator = ExponentialGrowthTimeSeriesGenerator(**common_args, times=settings['times'])
+            else:
+                generator = DistributionFunctionGenerator(**common_args)
+
+            self.cache = generator.generate_values(*args, **kwargs)
         return self.cache
 
 
@@ -395,6 +409,34 @@ class OpenpyxlExcelHandler(ExcelHandler):
         return definitions
 
 
+class Xlsx2CsvHandler(ExcelHandler):
+    def load_definitions(self, sheet_name, filename=None):
+        data = Xlsx2csv(filename, inmemory=True).convert(None, sheetid=0)
+
+        definitions = []
+
+        _sheet_names = [sheet_name] if sheet_name else [data.keys()]
+
+        for _sheet_name in _sheet_names:
+            sheet = data[_sheet_name]
+
+            header = sheet.header
+            if header[0] != 'variable':
+                continue
+
+            for row in sheet.rows:
+                values = {}
+                for key, cell in zip(header, row):
+                    values[key] = cell
+                definitions.append(values)
+        return definitions
+
+
+class CSVHandler(ExcelHandler):
+    def load_definitions(self, sheet_name, filename=None):
+        return csv.DictReader(open(filename), delimiter=',')
+
+
 class XLRDExcelHandler(ExcelHandler):
     @staticmethod
     def get_sheet_range_bounds(filename, sheet_name):
@@ -469,24 +511,21 @@ class ExcelParameterLoader(object):
 
        """
 
-    def __init__(self, filename, times=None, size=None, excel_handler='openpyxl', **kwargs):
-        self.size = size
-        if times is not None and size is None:
-            raise Exception('Both times and size arg must be set at the same time.')
-        self.times = times
+    def __init__(self, filename, excel_handler='openpyxl', **kwargs):
         self.filename = filename
 
         logger.info(f'Using {excel_handler} excel handler')
         excel_handler_instance = None
         if excel_handler == 'openpyxl':
             excel_handler_instance = OpenpyxlExcelHandler()
+        if excel_handler == 'xlsx2csv':
+            excel_handler_instance = Xlsx2CsvHandler()
         if excel_handler == 'xlwings':
             excel_handler_instance = XLWingsExcelHandler()
         if excel_handler == 'xlrd':
             excel_handler_instance = XLRDExcelHandler()
 
         self.excel_handler: ExcelHandler = excel_handler_instance
-        self.sample_mean_value = kwargs.get('sample_mean_value', False)
 
     def load_parameter_definitions(self, sheet_name: str = None):
         """
@@ -540,17 +579,8 @@ class ExcelParameterLoader(object):
                     else:
                         parameter_kwargs_def[k] = v
 
-            common_args = {'size': self.size,
-                           'sample_mean_value': self.sample_mean_value, }
-            common_args.update(**parameter_kwargs_def)
-
-            if self.times is not None:
-                generator = ExponentialGrowthTimeSeriesGenerator(**common_args, times=self.times)
-            else:
-                generator = DistributionFunctionGenerator(**common_args)
-
             name_ = parameter_kwargs_def['name']
             del parameter_kwargs_def['name']
-            p = Parameter(name_, **parameter_kwargs_def, value_generator=generator)
+            p = Parameter(name_, **parameter_kwargs_def)
             params.append(p)
         return params
