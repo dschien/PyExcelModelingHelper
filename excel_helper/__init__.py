@@ -407,6 +407,30 @@ class OpenpyxlExcelHandler(ExcelHandler):
         return definitions
 
 
+class Xlsx2CsvHandler(ExcelHandler):
+    def load_definitions(self, sheet_name, filename=None):
+        from xlsx2csv import Xlsx2csv
+        data = Xlsx2csv(filename, inmemory=True).convert(None, sheetid=0)
+
+        definitions = []
+
+        _sheet_names = [sheet_name] if sheet_name else [data.keys()]
+
+        for _sheet_name in _sheet_names:
+            sheet = data[_sheet_name]
+
+            header = sheet.header
+            if header[0] != 'variable':
+                continue
+
+            for row in sheet.rows:
+                values = {}
+                for key, cell in zip(header, row):
+                    values[key] = cell
+                definitions.append(values)
+        return definitions
+
+
 class CSVHandler(ExcelHandler):
     def load_definitions(self, sheet_name, filename=None):
         return csv.DictReader(open(filename), delimiter=',')
@@ -493,7 +517,8 @@ class ExcelParameterLoader(object):
         excel_handler_instance = None
         if excel_handler == 'openpyxl':
             excel_handler_instance = OpenpyxlExcelHandler()
-
+        if excel_handler == 'xlsx2csv':
+            excel_handler_instance = Xlsx2CsvHandler()
         if excel_handler == 'xlwings':
             excel_handler_instance = XLWingsExcelHandler()
         if excel_handler == 'xlrd':
