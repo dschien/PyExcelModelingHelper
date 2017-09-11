@@ -384,6 +384,7 @@ class DataSeriesLoader(ParameterLoader):
 
         :return:
         """
+        logger.info('generating values for variable %s' % name)
         values = super(DataSeriesLoader, self).generate_values(f, p, options, size=(len(self.times) * self.size,),
                                                                name=name)
         alpha = 0
@@ -397,12 +398,8 @@ class DataSeriesLoader(ParameterLoader):
         assert ref_date >= self.times[0].to_pydatetime(), 'Ref date must be within variable time span.'
         assert ref_date <= self.times[-1].to_pydatetime(), 'Ref date must be within variable time span.'
 
-        start_date = options[START_DATE] if START_DATE in options else self.times[0].to_pydatetime()
-        assert start_date == self.times[
-            0].to_pydatetime(), 'Start date of time index and variable must be identical.'
-        end_date = options[END_DATE] if END_DATE in options else self.times[-1].to_pydatetime()
-        assert end_date == self.times[
-            -1].to_pydatetime(), 'End date of time index and variable must be identical.'
+        start_date = self.times[0].to_pydatetime()
+        end_date = self.times[-1].to_pydatetime()
 
         a = growth_coefficients(start_date, end_date, ref_date, alpha, self.size)
 
