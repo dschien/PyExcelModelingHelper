@@ -11,8 +11,6 @@ from openpyxl import load_workbook
 import logging
 from functools import partial
 
-from xlsx2csv import Xlsx2csv
-
 __author__ = 'schien'
 
 param_name_map = {'variable': 'name', 'scenario': 'source_scenarios_string', 'module': 'module_name',
@@ -405,29 +403,6 @@ class OpenpyxlExcelHandler(ExcelHandler):
                 values = {}
                 for key, cell in zip(header, row):
                     values[key] = cell.value
-                definitions.append(values)
-        return definitions
-
-
-class Xlsx2CsvHandler(ExcelHandler):
-    def load_definitions(self, sheet_name, filename=None):
-        data = Xlsx2csv(filename, inmemory=True).convert(None, sheetid=0)
-
-        definitions = []
-
-        _sheet_names = [sheet_name] if sheet_name else [data.keys()]
-
-        for _sheet_name in _sheet_names:
-            sheet = data[_sheet_name]
-
-            header = sheet.header
-            if header[0] != 'variable':
-                continue
-
-            for row in sheet.rows:
-                values = {}
-                for key, cell in zip(header, row):
-                    values[key] = cell
                 definitions.append(values)
         return definitions
 
