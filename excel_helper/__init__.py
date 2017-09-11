@@ -493,8 +493,7 @@ class ExcelParameterLoader(object):
         excel_handler_instance = None
         if excel_handler == 'openpyxl':
             excel_handler_instance = OpenpyxlExcelHandler()
-        if excel_handler == 'xlsx2csv':
-            excel_handler_instance = Xlsx2CsvHandler()
+
         if excel_handler == 'xlwings':
             excel_handler_instance = XLWingsExcelHandler()
         if excel_handler == 'xlrd':
