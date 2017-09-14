@@ -6,3 +6,4 @@
 20.8.2016   0.3.1   Single var mean now analytical for choice, uniform, triangular and normal; trim white space from var names
 4.07.2017   0.4.0   Rewrite with new API
 4.07.2017   0.4.1   Added XLWings interface to read from Excel
+14.09.2017   0.5.0   Delay sampling from data source until __call__ on Parameter.
