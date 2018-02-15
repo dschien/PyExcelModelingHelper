@@ -56,7 +56,7 @@ class DistributionFunctionGenerator(object):
 
             logger.debug(f'setting function params for choice distribution {self.random_function_params}')
         else:
-            self.random_function_params = [i for i in [param_a, param_b, param_c] if i]
+            self.random_function_params = [i for i in [param_a, param_b, param_c] if i is not None]
 
     def get_mean(self, distribution_function):
         """Get the mean value for a distribution.
@@ -70,13 +70,13 @@ class DistributionFunctionGenerator(object):
         if name == 'normal':
             return self.random_function_params[0]
         if name == 'uniform':
-            return (self.random_function_params[0] + self.random_function_params[1]) / 2
+            return (self.random_function_params[0] + self.random_function_params[1]) / 2.
         if name == 'choice':
             return self.random_function_params[0].mean()
         if name == 'triangular':
             return (
                        self.random_function_params[0] + self.random_function_params[1] + self.random_function_params[
-                           2]) / 3
+                           2]) / 3.
         return distribution_function().mean()
 
     def generate_values(self, *args, **kwargs):
@@ -510,7 +510,7 @@ class ExcelParameterLoader(object):
 
        """
 
-    def __init__(self, filename, excel_handler='openpyxl', **kwargs):
+    def __init__(self, filename, excel_handler='xlrd', **kwargs):
         self.filename = filename
 
         logger.info(f'Using {excel_handler} excel handler')

@@ -7,3 +7,4 @@
 4.07.2017   0.4.0   Rewrite with new API
 4.07.2017   0.4.1   Added XLWings interface to read from Excel
 14.09.2017   0.5.0   Delay sampling from data source until __call__ on Parameter.
+16.2.2018   0.5.1   Fixed error in generation of random distributions with zero param values
