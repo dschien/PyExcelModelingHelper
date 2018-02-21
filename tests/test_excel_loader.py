@@ -1,11 +1,34 @@
 import unittest
 
 import pandas as pd
-
+import numpy as np
 from excel_helper import ExcelParameterLoader, ParameterRepository
 
 
 class ExcelParameterLoaderTestCase(unittest.TestCase):
+
+    def test_parameter_getvalue_random(self):
+        repository = ParameterRepository()
+        ExcelParameterLoader(filename='./test.xlsx', excel_handler='xlrd').load_into_repo(sheet_name='Sheet1',
+                                                                                          repository=repository)
+        p = repository.get_parameter('e')
+
+        settings = {'sample_size': 3, 'times': pd.date_range('2016-01-01', '2017-01-01', freq='MS'),
+                    'sample_mean_value': False}
+        n = np.mean(p())
+        assert n > 0.7
+
+    def test_parameter_getvalue_with_settings_mean(self):
+        repository = ParameterRepository()
+        ExcelParameterLoader(filename='./test.xlsx', excel_handler='xlrd').load_into_repo(sheet_name='Sheet1',
+                                                                                          repository=repository)
+        p = repository.get_parameter('e')
+
+        settings = {'sample_size': 3, 'times': pd.date_range('2016-01-01', '2017-01-01', freq='MS'),
+                    'sample_mean_value': True}
+        n = np.mean(p(settings))
+        assert n > 0.7
+
     def test_load_xlwings(self):
         repository = ParameterRepository()
         ExcelParameterLoader(filename='./test.xlsx', excel_handler='xlwings').load_into_repo(sheet_name='Sheet1',
@@ -121,7 +144,7 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
         ExcelParameterLoader(filename='./test_excelparameterloader.xlsx').load_into_repo(sheet_name='Sheet1',
                                                                                          repository=repository)
         p = repository.get_parameter('b')
-        val = p({'sample_mean_value': True})
+        val = p({'sample_mean_value': True, 'sample_size': 5})
         print(val)
         assert (val == 3).all()
 

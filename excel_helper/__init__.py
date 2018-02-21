@@ -56,7 +56,7 @@ class DistributionFunctionGenerator(object):
 
             logger.debug(f'setting function params for choice distribution {self.random_function_params}')
         else:
-            self.random_function_params = [i for i in [param_a, param_b, param_c] if i is not None]
+            self.random_function_params = [i for i in [param_a, param_b, param_c] if i not in [None, ""]]
 
     def get_mean(self, distribution_function):
         """Get the mean value for a distribution.
