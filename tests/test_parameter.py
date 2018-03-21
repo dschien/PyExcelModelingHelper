@@ -49,23 +49,16 @@ class ParameterTestCase(unittest.TestCase):
 
     def test_ExponentialGrowthTimeSeriesDistributionFunctionParameter_generate_values_uniform_mean(self):
         p = Parameter('test', module_name='numpy.random', distribution_name='uniform',
-                      param_a=1,
-                      param_b=2)
+                      param_a=1, param_b=2, cagr=.1)
 
         settings = {
             'use_time_series': True,
-            'times': pd.date_range('2009-01-01',
-                                   '2009-03-01',
-                                   freq='MS'),
-            'sample_size': 5,
-            'cagr': 1,
+            'times': pd.date_range('2009-01-01', '2010-01-01', freq='MS'),
+            'sample_size': 1,
             'sample_mean_value': True}
         a = p(settings)
 
-        print(a)
-        #@todo - if this is set to mean, we probably still want the CAGR applied. Not happening at the moment...
-        assert False
-        # assert abs(stats.shapiro(a)[0] - 0.9) < 0.1
+        assert a.iloc[0] * 1.1 == a.iloc[-1]
 
     def test_normal_zero_variance(self):
         p = Parameter('a', module_name='numpy.random', distribution_name='normal', param_a=0,

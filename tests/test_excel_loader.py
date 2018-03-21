@@ -1,8 +1,11 @@
 import unittest
+from datetime import date
 
 import pandas as pd
 import numpy as np
-from excel_helper import ExcelParameterLoader, ParameterRepository
+from dateutil import relativedelta
+
+from excel_helper import ExcelParameterLoader, ParameterRepository, growth_coefficients
 
 
 class ExcelParameterLoaderTestCase(unittest.TestCase):
@@ -148,6 +151,20 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
         print(val)
         assert (val == 3).all()
 
+    def test_parameter_getvalue_with_settings_mean(self):
+        repository = ParameterRepository()
+        ExcelParameterLoader(filename='./test_excelparameterloader.xlsx', excel_handler='xlrd').load_into_repo(
+            sheet_name='Sheet1', repository=repository)
+
+        p = repository.get_parameter('uniform_dist_growth')
+
+        settings = {'sample_size': 1, 'sample_mean_value': True, 'use_time_series': True,
+                    'times': pd.date_range('2009-01-01', '2010-01-01', freq='MS')}
+        val = p(settings)
+        print(val)
+        n = np.mean(val)
+        assert n > 0.7
+
     def test_uniform_mean_time(self):
         repository = ParameterRepository()
         ExcelParameterLoader(filename='./test_excelparameterloader.xlsx',
@@ -259,3 +276,126 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestCAGRCalculation(unittest.TestCase):
+    def test_identitical_month(self):
+        """
+        If start and end are identical, we expect an array of one row of ones of sample size
+
+        :return:
+        """
+        samples = 3
+        alpha = 1  # 100 percent p.a.
+        ref_date = date(2009, 1, 1)
+        start_date = date(2009, 1, 1)
+        end_date = date(2009, 1, 1)
+
+        a = growth_coefficients(start_date, end_date, ref_date, alpha, samples)
+        assert np.all(a == np.ones((samples, 1)))
+
+    def test_one_year(self):
+        """
+        If start and end are one month apart, we expect an array of one row of ones of sample size for the ref month
+        and one row with CAGR applied
+
+        :return:
+        """
+        samples = 3
+        alpha = 1  # 100 percent p.a.
+        ref_date = date(2009, 1, 1)
+        start_date = date(2009, 1, 1)
+        end_date = date(2010, 1, 1)
+
+        a = growth_coefficients(start_date, end_date, ref_date, alpha, samples)
+        print(a)
+        assert np.all(a[0] == np.ones((samples, 1)))
+        assert np.all(a[1] == np.ones((samples, 1)) * pow(1 + alpha, 1. / 12))
+
+    def test_one_year(self):
+        """
+        If start and end are one month apart, we expect an array of one row of ones of sample size for the ref month
+        and one row with CAGR applied
+
+        :return:
+        """
+        samples = 3
+        alpha = 0.5  # 100 percent p.a.
+        ref_date = date(2009, 1, 1)
+        start_date = date(2009, 1, 1)
+        end_date = date(2010, 1, 1)
+
+        a = growth_coefficients(start_date, end_date, ref_date, alpha, samples)
+        print(a)
+        assert np.all(a[0] == np.ones((samples, 1)))
+        assert np.all(a[1] == np.ones((samples, 1)) * pow(1 + alpha, 1. / 12))
+
+    def test_negative_growth(self):
+        """
+        If start and end are one month apart, we expect an array of one row of ones of sample size for the ref month
+        and one row with CAGR applied
+
+        :return:
+        """
+        samples = 3
+        alpha = -0.1  # 100 percent p.a.
+        ref_date = date(2009, 1, 1)
+        start_date = date(2009, 1, 1)
+        end_date = date(2010, 1, 1)
+        a = growth_coefficients(start_date, end_date, ref_date, alpha, samples)
+        print(a)
+        assert np.all(a[0] == np.ones((samples, 1)))
+        assert np.all(a[-1] == np.ones((samples, 1)) * 1 + alpha)
+
+    def test_refdate_after_start(self):
+        """
+        If the ref date is greater than the start, we expect an array of one row of ones of sample size for the ref month
+        and rows with (1-CAGR)^t applied
+
+        :return:
+        """
+        samples = 3
+        alpha = 0.1  # 10 percent p.a.
+        ref_date = date(2009, 2, 1)
+        start_date = date(2009, 1, 1)
+        end_date = date(2009, 2, 1)
+
+        a = growth_coefficients(start_date, end_date, ref_date, alpha, samples)
+        assert a.shape == (2, samples)
+        # first row has negative coefficients
+        assert np.all(a[0] == np.ones((samples, 1)) * pow(1 - alpha, 1. / 12))
+        # second row has ref values
+        assert np.all(a[-1] == np.ones((samples, 1)))
+
+    def test_refdate_between_start_and_end(self):
+        """
+        If the ref date is greater than the start, we expect an array of one row of ones of sample size for the ref month
+        and rows with (1-CAGR)^t applied
+
+        :return:
+        """
+        samples = 3
+        alpha = 0.1  # 10 percent p.a.
+        ref_date = date(2009, 3, 1)
+        start_date = date(2009, 1, 1)
+        end_date = date(2009, 6, 1)
+
+        delta = relativedelta.relativedelta(end_date, start_date)
+        total_months = delta.months + delta.years * 12 + 1
+
+        ref_delta = relativedelta.relativedelta(ref_date, start_date)
+        ref_row_idx = ref_delta.months + ref_delta.years * 12
+
+        a = growth_coefficients(start_date, end_date, ref_date, alpha, samples)
+        # print a
+
+        assert a.shape == (total_months, samples)
+        # the ref_row_idx has all ones
+        assert np.all(a[ref_row_idx] == np.ones((samples, 1)))
+        # the row before ref_row_idx has negative coefficients
+        assert np.all(a[ref_row_idx - 1] == np.ones((samples, 1)) * pow(1 - alpha, 1. / 12))
+        # the row after ref_row_idx has positive coefficients
+        assert np.all(a[ref_row_idx + 1] == np.ones((samples, 1)) * pow(1 + alpha, 1. / 12))
+
+        # the last row has positive coefficients
+        assert np.all(a[-1] == np.ones((samples, 1)) * pow(1 + alpha, float(total_months - 1 - ref_row_idx) / 12))

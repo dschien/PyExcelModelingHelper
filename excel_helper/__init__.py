@@ -67,16 +67,15 @@ class DistributionFunctionGenerator(object):
         :return: the mean as a scalar
         """
         name = self.distribution_name
+        params = self.random_function_params
         if name == 'normal':
-            return self.random_function_params[0]
+            return params[0]
         if name == 'uniform':
-            return (self.random_function_params[0] + self.random_function_params[1]) / 2.
+            return (params[0] + params[1]) / 2.
         if name == 'choice':
-            return self.random_function_params[0].mean()
+            return params[0].mean()
         if name == 'triangular':
-            return (
-                       self.random_function_params[0] + self.random_function_params[1] + self.random_function_params[
-                           2]) / 3.
+            return (params[0] + params[1] + params[2]) / 3.
         return distribution_function().mean()
 
     def generate_values(self, *args, **kwargs):
@@ -119,6 +118,8 @@ class Parameter(object):
     source: str
     scenario: str
 
+    processes: Dict[str, List]
+
     "optional comma-separated list of tags"
     tags: str
 
@@ -136,6 +137,9 @@ class Parameter(object):
 
         self.scenario = None
         self.cache = None
+
+        # track the usages of this parameter per process as a list of process-specific variable names that are backed by this parameter
+        self.processes = defaultdict(list)
 
         self.kwargs = kwargs
 
@@ -166,6 +170,10 @@ class Parameter(object):
 
             self.cache = generator.generate_values(*args, **kwargs)
         return self.cache
+
+    def add_usage(self, process_name, variable_name):
+        # add the name of a variable of a process model that is backed by this parameter
+        self.processes[process_name].append(variable_name)
 
 
 class ExponentialGrowthTimeSeriesGenerator(DistributionFunctionGenerator):
@@ -272,7 +280,9 @@ class ParameterScenarioSet(object):
 
 class ParameterRepository(object):
     """
-    Contains all known parameters.
+    Contains all known parameter definitions (so that it is not necessary to re-read the excel file for repeat param accesses).
+    The param definitions are independent from the sampling (the Param.__call__ method). Repeat access to __call__ will
+    create new samples.
 
     Internally, parameters are organised together with all the scenario variants in a single ParameterScenarioSet.
 
