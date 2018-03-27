@@ -386,8 +386,19 @@ class ParameterRepository(object):
         """
         return self.tags[tag]
 
-    def exists(self, param):
-        return param in self.parameter_sets.keys()
+    def exists(self, param, scenario=None) -> bool:
+        # if scenario is not None:
+        #     return
+        present = param in self.parameter_sets.keys()
+        if not present:
+            return False
+        scenario = scenario if scenario else ParameterScenarioSet.default_scenario
+
+        return scenario in self.parameter_sets[param].scenarios.keys()
+
+    def list_scenarios(self, param):
+        if param in self.parameter_sets.keys():
+            return self.parameter_sets[param].scenarios.keys()
 
 
 class ExcelHandler(object):

@@ -94,6 +94,44 @@ class ParameterRepositoryTestCase(unittest.TestCase):
 
         assert repo.exists('test')
 
+    def test_exists_with_scenario(self):
+        p = Parameter('test', source_scenarios_string='test_scenario')
+
+        repo = ParameterRepository()
+        repo.add_parameter(p)
+
+        assert repo.exists('test', scenario='test_scenario')
+        _p = repo.get_parameter('test', 'test_scenario')
+        assert _p.name == 'test'
+
+    def test_exists_without_scenario_not_exists(self):
+        p = Parameter('test')
+
+        repo = ParameterRepository()
+        repo.add_parameter(p)
+
+        assert not repo.exists('test', scenario='test_scenario')
+
+    def test_exists_with_scenario_not_exists(self):
+        p = Parameter('test', source_scenarios_string='test_scenario')
+
+        repo = ParameterRepository()
+        repo.add_parameter(p)
+
+        assert not repo.exists('test')
+        # _p = repo.get_parameter('test', 'test_scenario')
+        # assert _p.name == 'test'
+
+    def test_list_scenarios(self):
+        p = Parameter('test', source_scenarios_string='test_scenario')
+
+        repo = ParameterRepository()
+        repo.add_parameter(p)
+
+        _p = set(repo.list_scenarios('test'))
+
+        assert _p == set(['test_scenario'])
+
     def test_fill_missing_attributes_from_default_parameter(self):
         """
         Test that missing values in scenarios are being populated from the default param.
