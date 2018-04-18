@@ -5,6 +5,23 @@ from excel_helper import ParameterRepository, Parameter
 
 
 class ParameterRepositoryTestCase(unittest.TestCase):
+
+    def test_clear_cache(self):
+        parameter_kwargs_def = {'tags': 't1,t2', 'unit': 'kg', 'name': 'test', 'source_scenarios_string': '', 'module_name': 'numpy.random',
+                                'distribution_name': 'normal', 'param_a': 40, 'param_b': 4, 'param_c': ''}
+        p = Parameter(**parameter_kwargs_def)
+
+        repo = ParameterRepository()
+        repo.add_parameter(p)
+
+        param = repo['test']
+        v = param()
+        print(v)
+
+        repo.clear_cache()
+
+        assert param.cache == None
+
     def test_add_parameter(self):
         p = Parameter('test')
 

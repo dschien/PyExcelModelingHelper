@@ -298,6 +298,11 @@ class ParameterRepository(object):
         for p in parameters:
             self.add_parameter(p)
 
+    def clear_cache(self):
+        for p_sets in self.parameter_sets.values():
+            for param_name, param in p_sets.scenarios.items():
+                param.cache = None
+
     def add_parameter(self, parameter: Parameter):
         """
         A parameter can have several scenarios. They are specified as a comma-separated list in a string.
