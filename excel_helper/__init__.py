@@ -1,4 +1,5 @@
 import csv
+import datetime
 import importlib
 from abc import abstractmethod
 from collections import defaultdict
@@ -11,11 +12,14 @@ from openpyxl import load_workbook
 import logging
 from functools import partial
 
+from xlrd import xldate_as_tuple
+
 __author__ = 'schien'
 
 param_name_map = {'variable': 'name', 'scenario': 'source_scenarios_string', 'module': 'module_name',
                   'distribution': 'distribution_name', 'param 1': 'param_a', 'param 2': 'param_b', 'param 3': 'param_c',
-                  'unit': '', 'CAGR': 'cagr', 'ref date': '', 'label': '', 'tags': '', 'comment': '', 'source': ''}
+                  'unit': '', 'CAGR': 'cagr', 'ref date': 'ref_date', 'label': '', 'tags': '', 'comment': '',
+                  'source': ''}
 
 # logger.basicConfig(level=logger.DEBUG)
 logger = logging.getLogger(__name__)
@@ -145,7 +149,11 @@ class Parameter(object):
 
     def __call__(self, settings=None, *args, **kwargs):
         """
-        Returns the same value every time called.
+        Samples from a parameter. Values are cached and returns the same value every time called.
+
+        @todo confusing interface that accepts 'settings' and kwargs  at the same time.
+        worse- 'use_time_series' must be present in the settings dict
+
         :param args:
         :param kwargs:
         :return:
@@ -183,7 +191,9 @@ class ExponentialGrowthTimeSeriesGenerator(DistributionFunctionGenerator):
     def __init__(self, cagr=None, times=None, size=None, index_names=None, ref_date=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cagr = cagr if cagr else 0
-        self.ref_date = ref_date
+
+        self.ref_date = ref_date if ref_date else None
+
         self.times = times
         self.size = size
         iterables = [times, range(0, size)]
@@ -201,8 +211,8 @@ class ExponentialGrowthTimeSeriesGenerator(DistributionFunctionGenerator):
 
         # @todo - fill to cover the entire time: define rules for filling first
         ref_date = self.ref_date if self.ref_date else self.times[0].to_pydatetime()
-        assert ref_date >= self.times[0].to_pydatetime(), 'Ref date must be within variable time span.'
-        assert ref_date <= self.times[-1].to_pydatetime(), 'Ref date must be within variable time span.'
+        # assert ref_date >= self.times[0].to_pydatetime(), 'Ref date must be within variable time span.'
+        # assert ref_date <= self.times[-1].to_pydatetime(), 'Ref date must be within variable time span.'
 
         start_date = self.times[0].to_pydatetime()
         end_date = self.times[-1].to_pydatetime()
@@ -228,9 +238,9 @@ def growth_coefficients(start_date, end_date, ref_date, alpha, samples):
     The
     """
     if ref_date < start_date:
-        raise ValueError("Ref data must be >= start date.")
+        raise ValueError("Ref date must be >= start date.")
     if ref_date > end_date:
-        raise ValueError("Ref data must be >= start date.")
+        raise ValueError("Ref date must be <= end date.")
     if ref_date > start_date and alpha >= 1:
         raise ValueError("For a CAGR >= 1, ref date and start date must be the same.")
     # relative delta will be positive if ref date is >= start date (which it should with above assertions)
@@ -492,6 +502,8 @@ class XLRDExcelHandler(ExcelHandler):
                 values = {}
                 for key, cell in zip(header, row):
                     values[key] = cell.value
+                if 'ref date' in values and values['ref date']:
+                    values['ref date'] = datetime.datetime(*xldate_as_tuple(values['ref date'], wb.datemode))
                 definitions.append(values)
         return definitions
 
