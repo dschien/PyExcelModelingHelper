@@ -235,15 +235,27 @@ class ExponentialGrowthTimeSeriesGenerator(DistributionFunctionGenerator):
 def growth_coefficients(start_date, end_date, ref_date, alpha, samples):
     """
     Build a matrix of growth factors according to the CAGR formula  y'=y0 (1+a)^(t'-t0).
-    The
+
+    a growth rate alpha
+    t0 start date
+    t' end date
+    y' output
+    y0 start value
+
     """
+
+    start_offset = 0
     if ref_date < start_date:
-        raise ValueError("Ref date must be >= start date.")
+        offset_delta = rdelta.relativedelta(start_date, ref_date)
+        start_offset = offset_delta.months + 12 * offset_delta.years
+        start_date = ref_date
+
+    end_offset = 0
     if ref_date > end_date:
-        raise ValueError("Ref date must be <= end date.")
-    if ref_date > start_date and alpha >= 1:
-        raise ValueError("For a CAGR >= 1, ref date and start date must be the same.")
-    # relative delta will be positive if ref date is >= start date (which it should with above assertions)
+        offset_delta = rdelta.relativedelta(ref_date, end_date)
+        end_offset = offset_delta.months + 12 * offset_delta.years
+        end_date = ref_date
+
     delta_ar = rdelta.relativedelta(ref_date, start_date)
     ar = delta_ar.months + 12 * delta_ar.years
     delta_br = rdelta.relativedelta(end_date, ref_date)
@@ -254,8 +266,16 @@ def growth_coefficients(start_date, end_date, ref_date, alpha, samples):
     g = np.fromfunction(lambda i, j: np.power(1 - alpha, np.abs(i) / 12), (ar + 1, samples), dtype=float)
     h = np.fromfunction(lambda i, j: np.power(1 + alpha, np.abs(i + 1) / 12), (br, samples), dtype=float)
     g = np.flipud(g)
+
     # now join the two arrays
-    return np.vstack((g, h))
+    a = np.vstack((g, h))
+
+    if start_offset > 0:
+        a = a[start_offset:]
+    if end_offset > 0:
+        a = a[:-end_offset]
+
+    return a
 
 
 class ParameterScenarioSet(object):
