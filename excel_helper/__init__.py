@@ -523,7 +523,11 @@ class XLRDExcelHandler(ExcelHandler):
                 for key, cell in zip(header, row):
                     values[key] = cell.value
                 if 'ref date' in values and values['ref date']:
-                    values['ref date'] = datetime.datetime(*xldate_as_tuple(values['ref date'], wb.datemode))
+                    if isinstance(values['ref date'], float):
+                        values['ref date'] = datetime.datetime(*xldate_as_tuple(values['ref date'], wb.datemode))
+                    else:
+                        raise Exception(
+                            f"{values['ref date']} for variable {values['variable']} is not a date - check spreadsheet value is a valid day of a month")
                 definitions.append(values)
         return definitions
 
