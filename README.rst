@@ -79,3 +79,7 @@ The contents of the rows is also contained in the metadata
     print(res._metadata)
 ```
 
+
+## CAGR
+It is possible to define compound annual growth to the variables. The growth will be applied relative to the ref date.
+
