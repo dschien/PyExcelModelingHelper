@@ -218,8 +218,7 @@ class ExponentialGrowthTimeSeriesGenerator(DistributionFunctionGenerator):
         end_date = self.times[-1].to_pydatetime()
 
         a = growth_coefficients(start_date, end_date, ref_date, alpha, self.size)
-        print(a)
-        print(values)
+
         values *= a.ravel()
 
         df = pd.DataFrame(values)
