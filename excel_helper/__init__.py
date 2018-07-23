@@ -218,7 +218,8 @@ class ExponentialGrowthTimeSeriesGenerator(DistributionFunctionGenerator):
         end_date = self.times[-1].to_pydatetime()
 
         a = growth_coefficients(start_date, end_date, ref_date, alpha, self.size)
-
+        print(a)
+        print(values)
         values *= a.ravel()
 
         df = pd.DataFrame(values)
@@ -525,6 +526,8 @@ class XLRDExcelHandler(ExcelHandler):
                 if 'ref date' in values and values['ref date']:
                     if isinstance(values['ref date'], float):
                         values['ref date'] = datetime.datetime(*xldate_as_tuple(values['ref date'], wb.datemode))
+                        if values['ref date'].day != 1:
+                            logger.warning(f'ref date truncated to first of month for variable {values["variable"]}')
                     else:
                         raise Exception(
                             f"{values['ref date']} for variable {values['variable']} is not a date - check spreadsheet value is a valid day of a month")

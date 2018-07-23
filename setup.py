@@ -15,7 +15,7 @@ long_description = pypandoc.convert('README.md', 'rst')
 
 setup(
     name='excel-modelling-helper',
-    version='0.5.9',
+    version='0.5.10',
     description='Use Excel to define your model parameters.',
     long_description=(long_description + '\n\n' +
                       read('CHANGES.rst')),
