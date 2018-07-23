@@ -527,6 +527,7 @@ class XLRDExcelHandler(ExcelHandler):
                         values['ref date'] = datetime.datetime(*xldate_as_tuple(values['ref date'], wb.datemode))
                         if values['ref date'].day != 1:
                             logger.warning(f'ref date truncated to first of month for variable {values["variable"]}')
+                            values['ref date'] = values['ref date'].replace(day=1)
                     else:
                         raise Exception(
                             f"{values['ref date']} for variable {values['variable']} is not a date - check spreadsheet value is a valid day of a month")
