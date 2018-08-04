@@ -531,6 +531,7 @@ class XLRDExcelHandler(ExcelHandler):
                     else:
                         raise Exception(
                             f"{values['ref date']} for variable {values['variable']} is not a date - check spreadsheet value is a valid day of a month")
+                logger.debug(f'values for {values["variable"]}: {values}')
                 definitions.append(values)
         return definitions
 
