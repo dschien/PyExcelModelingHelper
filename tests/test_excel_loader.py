@@ -64,7 +64,7 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
 
     def test_load_by_sheetname(self):
         defs = ExcelParameterLoader(filename='./test_excelparameterloader.xlsx').load_parameter_definitions(
-            sheet_name='Sheet1')
+            sheet_name='Sheet1').values()
         for i, name in enumerate(['a', 'b', 'c']):
             assert defs[i]['variable'] == name
 

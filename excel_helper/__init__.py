@@ -508,6 +508,8 @@ class XLRDExcelHandler(ExcelHandler):
 
         definitions = []
 
+        _definition_tracking = defaultdict(dict)
+
         _sheet_names = [sheet_name] if sheet_name else [sh.name for sh in wb.sheets()]
 
         for _sheet_name in _sheet_names:
@@ -522,6 +524,11 @@ class XLRDExcelHandler(ExcelHandler):
                 values = {}
                 for key, cell in zip(header, row):
                     values[key] = cell.value
+
+                if not values['variable']:
+                    logger.info(f'ignoring row {row}')
+                    continue
+
                 if 'ref date' in values and values['ref date']:
                     if isinstance(values['ref date'], float):
                         values['ref date'] = datetime.datetime(*xldate_as_tuple(values['ref date'], wb.datemode))
@@ -533,6 +540,15 @@ class XLRDExcelHandler(ExcelHandler):
                             f"{values['ref date']} for variable {values['variable']} is not a date - check spreadsheet value is a valid day of a month")
                 logger.debug(f'values for {values["variable"]}: {values}')
                 definitions.append(values)
+                scenario = values['scenario'] if values['scenario'] else "n/a"
+
+                if scenario in _definition_tracking[values['variable']]:
+                    logger.error(
+                        f"Duplicate entry for parameter with name <{values['variable']}> and <{scenario}> scenario in sheet {_sheet_name}")
+                    raise ValueError(
+                        f"Duplicate entry for parameter with name <{values['variable']}> and <{scenario}> scenario in sheet {_sheet_name}")
+                else:
+                    _definition_tracking[values['variable']][scenario] = 1
         return definitions
 
 
