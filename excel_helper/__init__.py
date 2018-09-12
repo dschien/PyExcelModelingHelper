@@ -405,11 +405,13 @@ class ParameterRepository(object):
         return self.get_parameter(item, scenario_name=ParameterScenarioSet.default_scenario)
 
     def get_parameter(self, param_name, scenario_name=None) -> Parameter:
-        scenario = scenario_name if scenario_name else ParameterScenarioSet.default_scenario
+        if self.exists(param_name, scenario=scenario_name):
+            return self.parameter_sets[param_name][scenario_name]
+
         try:
-            return self.parameter_sets[param_name][scenario]
+            return self.parameter_sets[param_name][ParameterScenarioSet.default_scenario]
         except KeyError:
-            raise KeyError(f"{param_name} for scenario {scenario} not found")
+            raise KeyError(f"{param_name} not found")
 
     def find_by_tag(self, tag) -> Dict[str, Set[Parameter]]:
         """
@@ -520,13 +522,13 @@ class XLRDExcelHandler(ExcelHandler):
             if header[0] != 'variable':
                 continue
 
-            for row in rows[1:]:
+            for i, row in enumerate(rows[1:]):
                 values = {}
                 for key, cell in zip(header, row):
                     values[key] = cell.value
 
                 if not values['variable']:
-                    logger.info(f'ignoring row {row}')
+                    # logger.debug(f'ignoring row {i}: {row}')
                     continue
 
                 if 'ref date' in values and values['ref date']:
