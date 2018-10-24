@@ -16,10 +16,22 @@ from xlrd import xldate_as_tuple
 
 __author__ = 'schien'
 
-param_name_map = {'variable': 'name', 'scenario': 'source_scenarios_string', 'module': 'module_name',
-                  'distribution': 'distribution_name', 'param 1': 'param_a', 'param 2': 'param_b', 'param 3': 'param_c',
-                  'unit': '', 'CAGR': 'cagr', 'ref date': 'ref_date', 'label': '', 'tags': '', 'comment': '',
-                  'source': ''}
+param_name_map_v1 = {'variable': 'name', 'scenario': 'source_scenarios_string', 'module': 'module_name',
+                     'distribution': 'distribution_name', 'param 1': 'param_a', 'param 2': 'param_b',
+                     'param 3': 'param_c',
+                     'unit': '', 'CAGR': 'cagr', 'ref date': 'ref_date', 'label': '', 'tags': '', 'comment': '',
+                     'source': ''}
+
+param_name_map_v2 = {'variable': 'name', 'scenario': 'source_scenarios_string',
+                     'mean growth': 'growth_factor',
+                     'variability growth': 'ef_growth_factor',
+                     'variability': 'variance',
+                     'unit': '', 'CAGR': 'cagr', 'ref date': 'ref_date', 'label': '', 'tags': '', 'comment': '',
+                     'initial': 'initial',
+                     'param': 'param',
+                     'source': ''}
+
+param_name_maps = {1: param_name_map_v1, 2: param_name_map_v2}
 
 # logger.basicConfig(level=logger.DEBUG)
 logger = logging.getLogger(__name__)
@@ -45,6 +57,7 @@ class DistributionFunctionGenerator(object):
         :param size:
         :param kwargs: can contain key "sample_mean_value" with bool value
         """
+        self.kwargs = kwargs
         self.size = size
         self.module_name = module_name
         self.distribution_name = distribution_name
@@ -115,6 +128,7 @@ class Parameter(object):
     """
     A single parameter
     """
+    version: int
 
     name: str
     unit: str
@@ -128,9 +142,10 @@ class Parameter(object):
     tags: str
 
     def __init__(self, name, tags=None, source_scenarios_string: str = None, unit: str = None,
-                 comment: str = None, source: str = None,
+                 comment: str = None, source: str = None, version=None,
                  **kwargs):
         # The source definition of scenarios. A comma-separated list
+        self.version = version
         self.source = source
         self.comment = comment
 
@@ -172,7 +187,11 @@ class Parameter(object):
             common_args.update(**self.kwargs)
 
             if settings.get('use_time_series', False):
-                generator = ExponentialGrowthTimeSeriesGenerator(**common_args, times=settings['times'])
+                if self.version == 2:
+                    generator = GrowthTimeSeriesGenerator(**common_args, times=settings['times'])
+                else:
+                    generator = ConstantUncertaintyExponentialGrowthTimeSeriesGenerator(**common_args,
+                                                                                        times=settings['times'])
             else:
                 generator = DistributionFunctionGenerator(**common_args)
 
@@ -184,7 +203,84 @@ class Parameter(object):
         self.processes[process_name].append(variable_name)
 
 
-class ExponentialGrowthTimeSeriesGenerator(DistributionFunctionGenerator):
+class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
+    ref_date: str
+    # of the mean values
+    # the type of growth ['exp']
+    # growth_function_type: str
+    # of the error function
+    variance: str
+    # error function growth rate
+    ef_growth_factor: str
+
+    def __init__(self, times=None, size=None, index_names=None, ref_date=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.ref_date = ref_date if ref_date else None
+
+        self.times = times
+        self.size = size
+        iterables = [times, range(0, size)]
+        self._multi_index = pd.MultiIndex.from_product(iterables, names=index_names)
+        assert type(times.freq) == pd.tseries.offsets.MonthBegin, 'Time index must have monthly frequency'
+
+    def generate_values(self, *args, **kwargs):
+        """
+        Instantiate a random variable and apply annual growth factors.
+
+        :return:
+        """
+        assert 'initial' in self.kwargs
+        # 1. Generate $\mu$
+        mu_bar = np.full(len(self.times), self.kwargs['initial'])
+
+        start_date = self.times[0].to_pydatetime()
+        end_date = self.times[-1].to_pydatetime()
+        # 2. Apply Growth to Mean Values $\alpha_{mu}$
+        ref_date = self.ref_date
+        alpha_mu = growth_coefficients(start_date,
+                                       end_date,
+                                       ref_date,
+                                       self.kwargs['growth_factor'], 1)
+        mu = mu_bar * alpha_mu.ravel()
+        mu = mu.reshape(len(self.times), 1)
+        # 3. Generate $\sigma$
+        ## Prepare array with growth values $\sigma$
+        sample_mean = True
+        if sample_mean:
+            sigma = np.zeros((len(self.times), self.size))
+        else:
+            sigma = np.random.triangular(-1 * self.kwargs['variance'], 0, self.kwargs['variance'],
+                                         (len(self.times), self.size))
+        ## 4. Prepare growth array for $\alpha_{sigma}$
+        alpha_sigma = growth_coefficients(start_date,
+                                          end_date,
+                                          ref_date,
+                                          self.kwargs['ef_growth_factor'], 1)
+
+        ### 5. Prepare DataFrame
+        iterables = [self.times, range(self.size)]
+        index_names = ['time', 'samples']
+        _multi_index = pd.MultiIndex.from_product(iterables, names=index_names)
+
+        df = pd.DataFrame(index=_multi_index, dtype=float)
+
+        from dateutil import relativedelta
+        r = relativedelta.relativedelta(end_date, start_date)
+        months = r.years * 12 + r.months + 1
+        name = kwargs['name']
+        ## Apply growth to $\sigma$ and add $\sigma$ to $\mu$
+        df[name] = ((sigma * alpha_sigma) + mu.reshape(months, 1)).ravel()
+
+        ## test if df has sub-zero values
+        df_sigma__dropna = df[name].where(df[name] < 0).dropna()
+        if not df_sigma__dropna.empty:
+            logger.warning(f"Values contain negative values from {df_sigma__dropna.index[0][0]}")
+
+        return df[name]
+
+
+class ConstantUncertaintyExponentialGrowthTimeSeriesGenerator(DistributionFunctionGenerator):
     cagr: str
     ref_date: str
 
@@ -404,7 +500,7 @@ class ParameterRepository(object):
         """
         return self.get_parameter(item, scenario_name=ParameterScenarioSet.default_scenario)
 
-    def get_parameter(self, param_name, scenario_name=None) -> Parameter:
+    def get_parameter(self, param_name, scenario_name=ParameterScenarioSet.default_scenario) -> Parameter:
         if self.exists(param_name, scenario=scenario_name):
             return self.parameter_sets[param_name][scenario_name]
 
@@ -439,6 +535,11 @@ class ParameterRepository(object):
 
 
 class ExcelHandler(object):
+    version: int
+
+    def __init__(self):
+        self.version = 2
+
     @abstractmethod
     def load_definitions(self, sheet_name, filename=None):
         raise NotImplementedError()
@@ -447,6 +548,7 @@ class ExcelHandler(object):
 class OpenpyxlExcelHandler(ExcelHandler):
     def load_definitions(self, sheet_name, filename=None):
         definitions = []
+
         wb = load_workbook(filename=filename, data_only=True)
         _sheet_names = [sheet_name] if sheet_name else wb.sheetnames
         for _sheet_name in _sheet_names:
@@ -495,6 +597,8 @@ class CSVHandler(ExcelHandler):
 
 
 class XLRDExcelHandler(ExcelHandler):
+    version: int
+
     @staticmethod
     def get_sheet_range_bounds(filename, sheet_name):
         import xlrd
@@ -514,7 +618,21 @@ class XLRDExcelHandler(ExcelHandler):
 
         _sheet_names = [sheet_name] if sheet_name else [sh.name for sh in wb.sheets()]
 
+        version = 2
+
+        try:
+            sheet = wb.sheet_by_name('metadata')
+            rows = list(sheet.get_rows())
+            for row in rows:
+                if row[0].value == 'version':
+                    version = row[1].value
+            self.version = version
+        except:
+            logger.info(f'could not find a sheet with name "metadata" in workbook. defaulting to v2')
+
         for _sheet_name in _sheet_names:
+            if _sheet_name == 'metadata':
+                continue
             sheet = wb.sheet_by_name(_sheet_name)
             rows = list(sheet.get_rows())
             header = [cell.value for cell in rows[0]]
@@ -582,6 +700,7 @@ class XLWingsExcelHandler(ExcelHandler):
 
 
 class ExcelParameterLoader(object):
+    definition_version: int
     """Utility to populate ParameterRepository from spreadsheets.
 
         The structure of the spreadsheets is:
@@ -596,6 +715,7 @@ class ExcelParameterLoader(object):
 
     def __init__(self, filename, excel_handler='xlrd', **kwargs):
         self.filename = filename
+        self.definition_version = 2
 
         logger.info(f'Using {excel_handler} excel handler')
         excel_handler_instance = None
@@ -634,7 +754,7 @@ class ExcelParameterLoader(object):
         :return: list of dicts with {header col name : cell value} pairs
         """
         definitions = self.excel_handler.load_definitions(sheet_name, filename=self.filename)
-
+        self.definition_version = self.excel_handler.version
         return definitions
 
     def load_into_repo(self, repository: ParameterRepository = None, sheet_name: str = None):
@@ -650,6 +770,9 @@ class ExcelParameterLoader(object):
 
         parameter_definitions = self.load_parameter_definitions(sheet_name=sheet_name)
         params = []
+
+        param_name_map = param_name_maps[int(self.definition_version)]
+
         for _def in parameter_definitions:
 
             # substitute names from the headers with the kwargs names in the Parameter and Distributions classes
@@ -664,6 +787,6 @@ class ExcelParameterLoader(object):
 
             name_ = parameter_kwargs_def['name']
             del parameter_kwargs_def['name']
-            p = Parameter(name_, **parameter_kwargs_def)
+            p = Parameter(name_, version=self.definition_version, **parameter_kwargs_def)
             params.append(p)
         return params

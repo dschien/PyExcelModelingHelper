@@ -1,7 +1,7 @@
 import unittest
 
 import pandas as pd
-from excel_helper import Parameter, DistributionFunctionGenerator, ExponentialGrowthTimeSeriesGenerator
+from excel_helper import Parameter, DistributionFunctionGenerator, GrowthTimeSeriesGenerator
 from scipy import stats
 
 

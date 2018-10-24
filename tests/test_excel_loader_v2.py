@@ -12,24 +12,13 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
 
     def test_parameter_getvalue_random(self):
         repository = ParameterRepository()
-        ExcelParameterLoader(filename='./test.xlsx', excel_handler='xlrd').load_into_repo(sheet_name='Sheet1',
-                                                                                          repository=repository)
-        p = repository.get_parameter('e')
-
-        settings = {'sample_size': 3, 'times': pd.date_range('2016-01-01', '2017-01-01', freq='MS'),
-                    'sample_mean_value': False}
-        n = np.mean(p())
-        assert n > 0.7
-
-    def test_parameter_getvalue_random(self):
-        repository = ParameterRepository()
-        ExcelParameterLoader(filename='./test.xlsx', excel_handler='xlrd').load_into_repo(sheet_name='Sheet1',
+        ExcelParameterLoader(filename='./test_v2.xlsx', excel_handler='xlrd').load_into_repo(sheet_name='Sheet1',
                                                                                           repository=repository)
         p = repository.get_parameter('a')
 
         settings = {'sample_size': 3, 'times': pd.date_range('2016-01-01', '2017-01-01', freq='MS'),
-                    'sample_mean_value': False}
-        n = np.mean(p())
+                    'sample_mean_value': False, 'use_time_series': True}
+        n = np.mean(p(settings))
         assert n > 0.7
 
     def test_parameter_getvalue_with_settings_mean(self):
