@@ -13,7 +13,9 @@ import logging
 from functools import partial
 
 from xlrd import xldate_as_tuple
-
+import calendar
+from scipy.interpolate import interp1d
+import json
 __author__ = 'schien'
 
 param_name_map_v1 = {'variable': 'name', 'scenario': 'source_scenarios_string', 'module': 'module_name',
@@ -22,14 +24,21 @@ param_name_map_v1 = {'variable': 'name', 'scenario': 'source_scenarios_string', 
                      'unit': '', 'CAGR': 'cagr', 'ref date': 'ref_date', 'label': '', 'tags': '', 'comment': '',
                      'source': ''}
 
-param_name_map_v2 = {'variable': 'name', 'scenario': 'source_scenarios_string',
+param_name_map_v2 = {'CAGR': 'cagr',
+                     'comment': '',
+                     'label': '',
                      'mean growth': 'growth_factor',
+                     'param': '',
+                     'ref date': 'ref_date',
+                     'ref value': '',
+                     'scenario': 'source_scenarios_string',
+                     'source': '',
+                     'tags': '',
+                     'type': '',
+                     'unit': '',
                      'variability growth': 'ef_growth_factor',
-                     'variability': 'variance',
-                     'unit': '', 'CAGR': 'cagr', 'ref date': 'ref_date', 'label': '', 'tags': '', 'comment': '',
-                     'initial': 'initial',
-                     'param': 'param',
-                     'source': ''}
+                     'variability': '',
+                     'variable': 'name'}
 
 param_name_maps = {1: param_name_map_v1, 2: param_name_map_v2}
 
@@ -230,27 +239,23 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
 
         :return:
         """
-        assert 'initial' in self.kwargs
-        # 1. Generate $\mu$
-        mu_bar = np.full(len(self.times), self.kwargs['initial'])
+        assert 'ref value' in self.kwargs
 
+
+        # 1. Generate $\mu$
         start_date = self.times[0].to_pydatetime()
         end_date = self.times[-1].to_pydatetime()
-        # 2. Apply Growth to Mean Values $\alpha_{mu}$
         ref_date = self.ref_date
-        alpha_mu = growth_coefficients(start_date,
-                                       end_date,
-                                       ref_date,
-                                       self.kwargs['growth_factor'], 1)
-        mu = mu_bar * alpha_mu.ravel()
-        mu = mu.reshape(len(self.times), 1)
+
+        mu = self.generate_mu(end_date, ref_date, start_date)
+
         # 3. Generate $\sigma$
         ## Prepare array with growth values $\sigma$
         sample_mean = True
         if sample_mean:
             sigma = np.zeros((len(self.times), self.size))
         else:
-            sigma = np.random.triangular(-1 * self.kwargs['variance'], 0, self.kwargs['variance'],
+            sigma = np.random.triangular(-1 * self.kwargs['variability'], 0, self.kwargs['variability'],
                                          (len(self.times), self.size))
         ## 4. Prepare growth array for $\alpha_{sigma}$
         alpha_sigma = growth_coefficients(start_date,
@@ -278,6 +283,39 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
             logger.warning(f"Values contain negative values from {df_sigma__dropna.index[0][0]}")
 
         return df[name]
+
+    def generate_mu(self, end_date, ref_date, start_date):
+
+
+
+        if self.kwargs['type']== 'exp':
+
+            mu_bar = np.full(len(self.times), self.kwargs['ref value'])
+            # 2. Apply Growth to Mean Values $\alpha_{mu}$
+            alpha_mu = growth_coefficients(start_date,
+                                           end_date,
+                                           ref_date,
+                                           self.kwargs['growth_factor'], 1)
+            mu = mu_bar * alpha_mu.ravel()
+            mu = mu.reshape(len(self.times), 1)
+            return mu
+        if self.kwargs['type']== 'interp':
+
+
+            def toTimestamp(d):
+                return calendar.timegm(d.timetuple())
+
+            def interpolate(growth_config, date_range, kind='linear'):
+                arr1 = np.array([toTimestamp(datetime.datetime.strptime(date_val, '%Y-%m-%d')) for date_val in
+                                 growth_config.keys()])
+                arr2 = np.array([val for val in growth_config.values()])
+
+                f = interp1d(arr1, arr2, kind=kind)
+                return f([toTimestamp(date_val) for date_val in date_range])
+
+            ref_value_ = self.kwargs['ref value']
+            ref_value_ = json.loads(ref_value_.strip())
+            return interpolate(ref_value_, self.times, self.kwargs['param'])
 
 
 class ConstantUncertaintyExponentialGrowthTimeSeriesGenerator(DistributionFunctionGenerator):
@@ -618,7 +656,7 @@ class XLRDExcelHandler(ExcelHandler):
 
         _sheet_names = [sheet_name] if sheet_name else [sh.name for sh in wb.sheets()]
 
-        version = 2
+        version = 1
 
         try:
             sheet = wb.sheet_by_name('metadata')
