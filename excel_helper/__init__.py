@@ -251,8 +251,7 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
 
         # 3. Generate $\sigma$
         ## Prepare array with growth values $\sigma$
-        sample_mean = True
-        if sample_mean:
+        if self.sample_mean_value:
             sigma = np.zeros((len(self.times), self.size))
         else:
             sigma = np.random.triangular(-1 * self.kwargs['variability'], 0, self.kwargs['variability'],
@@ -310,7 +309,7 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
                                  growth_config.keys()])
                 arr2 = np.array([val for val in growth_config.values()])
 
-                f = interp1d(arr1, arr2, kind=kind)
+                f = interp1d(arr1, arr2, kind=kind, fill_value='extrapolate')
                 return f([toTimestamp(date_val) for date_val in date_range])
 
             ref_value_ = self.kwargs['ref value']
@@ -576,7 +575,7 @@ class ExcelHandler(object):
     version: int
 
     def __init__(self):
-        self.version = 2
+        self.version = 1
 
     @abstractmethod
     def load_definitions(self, sheet_name, filename=None):

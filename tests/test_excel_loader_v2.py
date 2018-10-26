@@ -36,12 +36,16 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
         repository = ParameterRepository()
         ExcelParameterLoader(filename='./test.xlsx', excel_handler='xlrd').load_into_repo(sheet_name='Sheet1',
                                                                                           repository=repository)
-        p = repository.get_parameter('e')
+        p = repository.get_parameter('a')
 
-        settings = {'sample_size': 3, 'times': pd.date_range('2016-01-01', '2017-01-01', freq='MS'),
+        settings = {'sample_size': 3, 'times': pd.date_range('2009-01-01', '2009-12-01', freq='MS'),
                     'sample_mean_value': True}
-        n = np.mean(p(settings))
-        assert n > 0.7
+        r = p(settings)
+        print(r)
+
+
+
+
 
     def test_load_xlwings(self):
         repository = ParameterRepository()
