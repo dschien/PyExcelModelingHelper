@@ -18,6 +18,10 @@ from scipy.interpolate import interp1d
 import json
 __author__ = 'schien'
 
+import pkg_resources  # part of setuptools
+version = pkg_resources.require("excel-modelling-helper")[0].version
+
+
 param_name_map_v1 = {'variable': 'name', 'scenario': 'source_scenarios_string', 'module': 'module_name',
                      'distribution': 'distribution_name', 'param 1': 'param_a', 'param 2': 'param_b',
                      'param 3': 'param_c',

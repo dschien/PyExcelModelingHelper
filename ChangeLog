@@ -1,0 +1,77 @@
+CHANGES
+=======
+
+* use extrapolation with scipy interp
+* new interpolation function
+* minimum working version
+* increment version number
+* with scenarios
+* with idle energy consumption
+* make graph file type a cmd line setting
+* added a mention of CAGR to the readme
+* truncate ref date
+* removed debug print statesmtenst
+* truncate ref date to 1st of month
+* print error message when non-string date
+* - new
+* - inc version number
+* - extend time bounds to include ref date for sample generation
+* - upgrade version to 0.5.7
+* - fix broken ref date parsing
+* - refactoring: store simulation results in subfolder output/model name / datetime - server: new page compare\_runs/model name to compare model runs
+* - helper 0.5.6: new function ParameterRepository.clear\_cache
+* changes to param repo exists method to accomodate scenario parameters bump version to 0.5.5
+* fix random function initialisation: ignore None and empty strings
+* fix random function initialisation: ignore None and empty strings
+* Fixed error in generation of random distributions with zero param values
+* up version number
+* put xlsx2csv back in
+* removed xlsx2csv
+* removed xlsx2csv
+* remove test of start/end date
+* first tests completing
+* updated for XLWings
+* added XLWings ExcelHandler
+* fixed choice mean generation
+* increased version number
+* added sphinx doc
+* added option to sample\_mean\_value from distributions
+* added option to sample\_mean\_value from distributions
+* added option to sample\_mean\_value from distributions
+* Added documentation to ExcelParameterLoader
+* more tests
+* fixed excel param distribution generation
+* populate empty fields from default
+* with working implementation of excel loader and multiple scenarios and tags
+* with working implementation of single dimension and time series distributions
+* tests for distribution generation, and adding and getting parameters
+* fixed test cases
+* fixed value generation when size is None version inc to 0.3.2
+* with complete serialisation and deserialisation
+* proper test case for 'single\_var' kwarg add xarray to dependencies inc to v 0.3.0
+* proper test case for 'single\_var' kwarg add xarray to dependencies inc to v 0.3.0
+* proper test case for 'single\_var' kwarg add xarray to dependencies inc to v 0.3.0
+* Added new flag 'single\_var' to freeze all variables except one to their mean value - use in sensitivity analysis
+* added test fixed install dependencies
+* added logging
+* added logging
+* added documentation
+* added python 2.7 support back in
+* added excel data source reload now python 3 only
+* catch non-initialised item access to prepare item for access
+
+0.2.0
+-----
+
+* added documentation and python 3 classifier
+* changed README to md
+* added documentation
+* make python 3 ready
+* import on new machine from FS
+
+v0.1.9
+------
+
+* added CAGR support added from df support
+* added CAGR support added from df support
+* Initial commit

@@ -1,0 +1,6 @@
+pbr
+scipy
+xlrd
+pandas
+numpy
+python-dateutil
