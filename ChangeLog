@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+0.6.6
+-----
+
+* added openpyxl as extra
+* removed old module moved openpyxl dependency into method
+
 0.6.5
 -----
 
