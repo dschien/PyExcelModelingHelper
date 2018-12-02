@@ -8,7 +8,7 @@ from typing import Dict, List, Set
 import numpy as np
 import pandas as pd
 from dateutil import relativedelta as rdelta
-from openpyxl import load_workbook
+
 import logging
 from functools import partial
 
@@ -590,6 +590,7 @@ class OpenpyxlExcelHandler(ExcelHandler):
     def load_definitions(self, sheet_name, filename=None):
         definitions = []
 
+        from openpyxl import load_workbook
         wb = load_workbook(filename=filename, data_only=True)
         _sheet_names = [sheet_name] if sheet_name else wb.sheetnames
         for _sheet_name in _sheet_names:

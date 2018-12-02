@@ -1,6 +1,11 @@
 CHANGES
 =======
 
+0.6.5
+-----
+
+* fixed pbr package declaration
+
 0.6.4
 -----
 
