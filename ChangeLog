@@ -1,6 +1,15 @@
 CHANGES
 =======
 
+0.6.2
+-----
+
+* cleaned up authors
+* moved to pbr for build
+
+0.6.0
+-----
+
 * use extrapolation with scipy interp
 * new interpolation function
 * minimum working version

@@ -1,9 +1,6 @@
 __author__ = 'schien'
-import os
 
-import pypandoc
-from setuptools import setup, find_packages
-
+from setuptools import setup
 
 # def read(*paths):
 #     """Build a file path from *paths* and return the contents."""
