@@ -1,4 +1,9 @@
-# Example
+# Excel helper
+
+A library to load data from excel files. It supports sampling from random distributions and extrapolating growth over time.
+
+ 
+## Example
 Given an excel file with rows similar to the below
 
 | variable        | scenario | module                                      | distribution | param 1          | param 2 | param 3 | unit | start date | end date   | CAGR | ref date   | label      | comment | source |
@@ -119,3 +124,20 @@ The contents of the rows is also contained in the metadata
     print(res._metadata)
 ```
 
+## Excel syntax
+### Version 2
+| column name | meaning |
+| ----------|---------
+| variable |   |
+| scenario |   |
+| type |   |
+| ref value |   |
+| mean growth |   |
+| variability |   |
+| variability growth |   |
+| ref date |   |
+| unit |   |
+| label |   |
+| source |   |
+| comment |   |
+| control |   |

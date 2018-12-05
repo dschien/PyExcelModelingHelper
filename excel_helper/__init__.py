@@ -304,7 +304,6 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
             return mu
         if self.kwargs['type']== 'interp':
 
-
             def toTimestamp(d):
                 return calendar.timegm(d.timetuple())
 
