@@ -13,7 +13,7 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
     def test_parameter_getvalue_exp(self):
         repository = ParameterRepository()
         ExcelParameterLoader(filename='./test_v2.xlsx', excel_handler='xlrd').load_into_repo(sheet_name='Sheet1',
-                                                                                          repository=repository)
+                                                                                             repository=repository)
         p = repository.get_parameter('a')
 
         settings = {'sample_size': 3, 'times': pd.date_range('2016-01-01', '2017-01-01', freq='MS'),
@@ -24,7 +24,7 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
     def test_parameter_getvalue_linear(self):
         repository = ParameterRepository()
         ExcelParameterLoader(filename='./test_v2.xlsx', excel_handler='xlrd').load_into_repo(sheet_name='Sheet1',
-                                                                                          repository=repository)
+                                                                                             repository=repository)
         p = repository.get_parameter('b')
 
         settings = {'sample_size': 3, 'times': pd.date_range('2010-01-01', '2010-12-01', freq='MS'),
@@ -42,46 +42,6 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
                     'sample_mean_value': True}
         r = p(settings)
         print(r)
-
-
-
-
-
-    def test_load_xlwings(self):
-        repository = ParameterRepository()
-        ExcelParameterLoader(filename='./test.xlsx', excel_handler='xlwings').load_into_repo(sheet_name='Sheet1',
-                                                                                             repository=repository)
-        p = repository.get_parameter('a')
-        assert p() in [4, 2]
-
-    def test_load_xlsx2csv(self):
-        repository = ParameterRepository()
-        ExcelParameterLoader(filename='./test.xlsx', excel_handler='xlsx2csv').load_into_repo(sheet_name='Sheet1',
-                                                                                              repository=repository)
-        p = repository.get_parameter('a')
-        assert p() in [4, 2]
-
-    def test_load_xlrd(self):
-        repository = ParameterRepository()
-        ExcelParameterLoader(filename='./test.xlsx', excel_handler='xlrd').load_into_repo(sheet_name='Sheet1',
-                                                                                          repository=repository)
-        p = repository.get_parameter('a')
-        assert p() in [4, 2]
-
-    def test_load_xlrd_formula(self):
-        repository = ParameterRepository()
-        ExcelParameterLoader(filename='./test.xlsx', excel_handler='xlrd').load_into_repo(sheet_name='Sheet1',
-                                                                                          repository=repository)
-        p = repository.get_parameter('e')
-        val = p()
-        print(val)
-        assert val > 0.7
-
-    def test_load_by_sheetname(self):
-        defs = ExcelParameterLoader(filename='./test_excelparameterloader.xlsx').load_parameter_definitions(
-            sheet_name='Sheet1').values()
-        for i, name in enumerate(['a', 'b', 'c']):
-            assert defs[i]['variable'] == name
 
     def test_column_order(self):
         repository = ParameterRepository()
@@ -180,20 +140,6 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
         n = np.mean(val)
         assert n > 0.7
 
-    def test_uniform_mean_time(self):
-        repository = ParameterRepository()
-        ExcelParameterLoader(filename='./test_excelparameterloader.xlsx',
-                             times=pd.date_range('2009-01-01', '2015-05-01', freq='MS'),
-                             size=10,
-                             sample_mean_value=True
-                             ).load_into_repo(sheet_name='Sheet1', repository=repository)
-        p = repository.get_parameter('b')
-        val = p()
-        # print(val)
-        # print(type(val))
-
-        assert (val == 3).all()
-
     def test_triagular(self):
         repository = ParameterRepository()
         ExcelParameterLoader(filename='./test_excelparameterloader.xlsx').load_into_repo(sheet_name='Sheet1',
@@ -216,16 +162,6 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
 
         assert (res < 10.).all() & (res > 3.).all()
 
-    def test_normal(self):
-        repository = ParameterRepository()
-        ExcelParameterLoader(filename='./test.xlsx', excel_handler='xlwings').load_into_repo(sheet_name='Sheet1',
-                                                                                             repository=repository)
-        # print('\n')
-        p = repository['e']
-
-        val = p()
-        print(val)
-
     def test_triangular_timeseries(self):
         repository = ParameterRepository()
         ExcelParameterLoader(filename='./test.xlsx').load_into_repo(sheet_name='Sheet1', repository=repository)
@@ -244,49 +180,6 @@ class ExcelParameterLoaderTestCase(unittest.TestCase):
         res = p(settings)
         print(res)
         assert (res < 10.).all() & (res > 3.).all()
-
-    def test_formulas_fix_row(self):
-        repository = ParameterRepository()
-
-        ExcelParameterLoader(filename='/Users/csxds/workspaces/bbc/ngmodel/data/tmp/public_model_params.xlsx',
-                             times=pd.date_range('2009-01-01', '2015-05-01', freq='MS'), size=10,
-                             ).load_into_repo(sheet_name='iplayer', repository=repository)
-
-        p = repository.get_parameter('requests_Tablet_Cell')
-
-        res = p()
-        print(res.mean())
-
-        assert (res > 0).all()
-
-    def test_formulas_fix_row_ms_excel_online(self):
-        repository = ParameterRepository()
-        # ExcelParameterLoader(filename='/Users/csxds/Downloads/public_model_params.xlsx-4.xlsx',
-        ExcelParameterLoader(filename='/Users/csxds/workspaces/bbc/ngmodel/data/tmp/public_model_params.xlsx',
-                             times=pd.date_range('2009-01-01', '2015-05-01', freq='MS'), size=10,
-                             ).load_into_repo(sheet_name='iplayer', repository=repository)
-
-        p = repository.get_parameter('requests_Tablet_Cell_3')
-
-        res = p()
-        print(res.mean())
-
-        assert (res > 0).all()
-
-    def test_formulas_ref_sheet_by_name(self):
-        repository = ParameterRepository()
-        # ExcelParameterLoader(filename='/Users/csxds/Downloads/public_model_params.xlsx-4.xlsx',
-        ExcelParameterLoader(filename='/Users/csxds/workspaces/bbc/ngmodel/data/tmp/public_model_params.xlsx',
-                             times=pd.date_range('2009-01-01', '2015-05-01', freq='MS'), size=10,
-                             excel_handler='xlwings'
-                             ).load_into_repo(sheet_name='Distribution', repository=repository)
-
-        p = repository.get_parameter('embodied_carbon_intensity_per_dv')
-
-        res = p()
-        print(res.mean())
-
-        assert (res > 0).all()
 
 
 if __name__ == '__main__':

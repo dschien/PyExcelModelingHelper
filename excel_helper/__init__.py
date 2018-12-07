@@ -16,11 +16,12 @@ from xlrd import xldate_as_tuple
 import calendar
 from scipy.interpolate import interp1d
 import json
+
 __author__ = 'schien'
 
 import pkg_resources  # part of setuptools
-version = pkg_resources.require("excel-modelling-helper")[0].version
 
+version = pkg_resources.require("excel-modelling-helper")[0].version
 
 param_name_map_v1 = {'variable': 'name', 'scenario': 'source_scenarios_string', 'module': 'module_name',
                      'distribution': 'distribution_name', 'param 1': 'param_a', 'param 2': 'param_b',
@@ -41,7 +42,7 @@ param_name_map_v2 = {'CAGR': 'cagr',
                      'type': '',
                      'unit': '',
                      'variability growth': 'ef_growth_factor',
-                     'variability': '',
+                     'initial_value_proportional_variation': '',
                      'variable': 'name'}
 
 param_name_maps = {1: param_name_map_v1, 2: param_name_map_v2}
@@ -245,7 +246,6 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
         """
         assert 'ref value' in self.kwargs
 
-
         # 1. Generate $\mu$
         start_date = self.times[0].to_pydatetime()
         end_date = self.times[-1].to_pydatetime()
@@ -258,7 +258,15 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
         if self.sample_mean_value:
             sigma = np.zeros((len(self.times), self.size))
         else:
-            sigma = np.random.triangular(-1 * self.kwargs['variability'], 0, self.kwargs['variability'],
+
+            if self.kwargs['type'] == 'interp':
+                ref_value_ = sorted(json.loads(self.kwargs['ref value'].strip()).items(), key=lambda t: t[1])
+                intial_value = ref_value_[0][1]
+            else:
+                intial_value = self.kwargs['ref value']
+
+            variability_ = intial_value * self.kwargs['initial_value_proportional_variation']
+            sigma = np.random.triangular(-1 * variability_, 0, variability_,
                                          (len(self.times), self.size))
         ## 4. Prepare growth array for $\alpha_{sigma}$
         alpha_sigma = growth_coefficients(start_date,
@@ -289,10 +297,7 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
 
     def generate_mu(self, end_date, ref_date, start_date):
 
-
-
-        if self.kwargs['type']== 'exp':
-
+        if self.kwargs['type'] == 'exp':
             mu_bar = np.full(len(self.times), self.kwargs['ref value'])
             # 2. Apply Growth to Mean Values $\alpha_{mu}$
             alpha_mu = growth_coefficients(start_date,
@@ -302,12 +307,11 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
             mu = mu_bar * alpha_mu.ravel()
             mu = mu.reshape(len(self.times), 1)
             return mu
-        if self.kwargs['type']== 'interp':
-
+        if self.kwargs['type'] == 'interp':
             def toTimestamp(d):
                 return calendar.timegm(d.timetuple())
 
-            def interpolate(growth_config, date_range, kind='linear'):
+            def interpolate(growth_config: Dict[str, float], date_range, kind='linear'):
                 arr1 = np.array([toTimestamp(datetime.datetime.strptime(date_val, '%Y-%m-%d')) for date_val in
                                  growth_config.keys()])
                 arr2 = np.array([val for val in growth_config.values()])
@@ -315,8 +319,7 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
                 f = interp1d(arr1, arr2, kind=kind, fill_value='extrapolate')
                 return f([toTimestamp(date_val) for date_val in date_range])
 
-            ref_value_ = self.kwargs['ref value']
-            ref_value_ = json.loads(ref_value_.strip())
+            ref_value_ = json.loads(self.kwargs['ref value'].strip())
             return interpolate(ref_value_, self.times, self.kwargs['param'])
 
 
@@ -698,16 +701,21 @@ class XLRDExcelHandler(ExcelHandler):
                             values['ref date'] = values['ref date'].replace(day=1)
                     else:
                         raise Exception(
-                            f"{values['ref date']} for variable {values['variable']} is not a date - check spreadsheet value is a valid day of a month")
+                            f"{values['ref date']} for variable {values['variable']} is not a date - "
+                            f"check spreadsheet value is a valid day of a month")
                 logger.debug(f'values for {values["variable"]}: {values}')
                 definitions.append(values)
                 scenario = values['scenario'] if values['scenario'] else "n/a"
 
                 if scenario in _definition_tracking[values['variable']]:
+
                     logger.error(
-                        f"Duplicate entry for parameter with name <{values['variable']}> and <{scenario}> scenario in sheet {_sheet_name}")
+                        f"Duplicate entry for parameter "
+                        f"with name <{values['variable']}> and <{scenario}> scenario in sheet {_sheet_name}")
                     raise ValueError(
-                        f"Duplicate entry for parameter with name <{values['variable']}> and <{scenario}> scenario in sheet {_sheet_name}")
+                        f"Duplicate entry for parameter "
+                        f"with name <{values['variable']}> and <{scenario}> scenario in sheet {_sheet_name}")
+
                 else:
                     _definition_tracking[values['variable']][scenario] = 1
         return definitions
