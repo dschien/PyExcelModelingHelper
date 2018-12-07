@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+0.6.7
+-----
+
+* variability of uncertainty function is now relative to initial value of mean
+* started added documentation on excel format v2 bug fix
+* increased version number of excel helper to 0.6.6
+
 0.6.6
 -----
 
