@@ -260,12 +260,17 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
         else:
 
             if self.kwargs['type'] == 'interp':
-                ref_value_ = sorted(json.loads(self.kwargs['ref value'].strip()).items(), key=lambda t: t[1])
+
+                def get_date(record):
+                    return datetime.datetime.strptime(record[0], "%Y-%m-%d")
+
+                ref_value_ = sorted(json.loads(self.kwargs['ref value'].strip()).items(), key=get_date)
                 intial_value = ref_value_[0][1]
             else:
                 intial_value = self.kwargs['ref value']
 
             variability_ = intial_value * self.kwargs['initial_value_proportional_variation']
+            logger.debug(f'sampling random distribution with parameters -{variability_}, 0, {variability_}')
             sigma = np.random.triangular(-1 * variability_, 0, variability_,
                                          (len(self.times), self.size))
         ## 4. Prepare growth array for $\alpha_{sigma}$
