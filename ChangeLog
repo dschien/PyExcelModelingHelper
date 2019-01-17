@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+0.6.8
+-----
+
+* bug fix: array of "ref value"s must be sorted by datetime
+* increment excel helper version
+
 0.6.7
 -----
 
