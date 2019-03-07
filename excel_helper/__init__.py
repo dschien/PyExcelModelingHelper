@@ -535,7 +535,7 @@ class ParameterRepository(object):
                     setattr(param, att_name, att_value)
 
                 if not getattr(param, att_name):
-                    logger.info(
+                    logger.debug(
                         f'For param {param.name} for scenarios {param.source_scenarios_string}, populating attribute {att_name} with value {att_value} from default parameter.')
 
                     setattr(param, att_name, att_value)
