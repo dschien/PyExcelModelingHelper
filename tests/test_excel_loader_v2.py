@@ -8,6 +8,34 @@ from dateutil import relativedelta
 from excel_helper import ExcelParameterLoader, ParameterRepository, growth_coefficients
 
 
+class CSVParameterLoaderTestCase(unittest.TestCase):
+
+    def test_parameter_getvalue_exp(self):
+        repository = ParameterRepository()
+        ExcelParameterLoader(filename='./test_v2.csv', excel_handler='csv').load_into_repo(sheet_name='Sheet1',
+                                                                                           repository=repository)
+        p = repository.get_parameter('a')
+
+        settings = {'sample_size': 3, 'times': pd.date_range('2016-01-01', '2017-01-01', freq='MS'),
+                    'sample_mean_value': False, 'use_time_series': True}
+        n = np.mean(p(settings))
+        assert n > 0.7
+
+
+class PandasCSVParameterLoaderTestCase(unittest.TestCase):
+
+    def test_parameter_getvalue_exp(self):
+        repository = ParameterRepository()
+        ExcelParameterLoader(filename='./test_v2.csv', excel_handler='pandas').load_into_repo(sheet_name='Sheet1',
+                                                                                              repository=repository)
+        p = repository.get_parameter('a')
+
+        settings = {'sample_size': 3, 'times': pd.date_range('2016-01-01', '2017-01-01', freq='MS'),
+                    'sample_mean_value': False, 'use_time_series': True}
+        n = np.mean(p(settings))
+        assert n > 0.7
+
+
 class ExcelParameterLoaderTestCase(unittest.TestCase):
 
     def test_parameter_getvalue_exp(self):

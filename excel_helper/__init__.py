@@ -1,6 +1,7 @@
 import csv
 import datetime
 import importlib
+import sys
 from abc import abstractmethod
 from collections import defaultdict
 from typing import Dict, List, Set
@@ -267,12 +268,14 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
                 ref_value_ = sorted(json.loads(self.kwargs['ref value'].strip()).items(), key=get_date)
                 intial_value = ref_value_[0][1]
             else:
-                intial_value = self.kwargs['ref value']
+                intial_value = float(self.kwargs['ref value'])
 
             variability_ = intial_value * self.kwargs['initial_value_proportional_variation']
             logger.debug(f'sampling random distribution with parameters -{variability_}, 0, {variability_}')
             sigma = np.random.triangular(-1 * variability_, 0, variability_,
                                          (len(self.times), self.size))
+        # logger.debug(ref_date.strftime("%b %d %Y"))
+
         ## 4. Prepare growth array for $\alpha_{sigma}$
         alpha_sigma = growth_coefficients(start_date,
                                           end_date,
@@ -285,12 +288,16 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
         _multi_index = pd.MultiIndex.from_product(iterables, names=index_names)
 
         df = pd.DataFrame(index=_multi_index, dtype=float)
-
+        logger.debug(start_date)
+        logger.debug(end_date)
         from dateutil import relativedelta
         r = relativedelta.relativedelta(end_date, start_date)
         months = r.years * 12 + r.months + 1
         name = kwargs['name']
         ## Apply growth to $\sigma$ and add $\sigma$ to $\mu$
+        # logger.debug(sigma.size)
+        # logger.debug(alpha_sigma.shape)
+        # logger.debug(months)
         df[name] = ((sigma * alpha_sigma) + mu.reshape(months, 1)).ravel()
 
         ## test if df has sub-zero values
@@ -303,7 +310,7 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
     def generate_mu(self, end_date, ref_date, start_date):
 
         if self.kwargs['type'] == 'exp':
-            mu_bar = np.full(len(self.times), self.kwargs['ref value'])
+            mu_bar = np.full(len(self.times), float(self.kwargs['ref value']))
             # 2. Apply Growth to Mean Values $\alpha_{mu}$
             alpha_mu = growth_coefficients(start_date,
                                            end_date,
@@ -645,6 +652,23 @@ class CSVHandler(ExcelHandler):
         return csv.DictReader(open(filename), delimiter=',')
 
 
+class PandasCSVHandler(ExcelHandler):
+
+    def load_definitions(self, sheet_name, filename=None):
+        self.version = 2
+
+        import pandas as pd
+        df = pd.read_csv(filename, usecols=range(15), index_col=False, parse_dates=['ref date'],
+                         dtype={'initial_value_proportional_variation': 'float64'},
+                         dayfirst=True
+                         # date_parser=lambda x: pd.datetime.strptime(x, '%d-%m-%Y')
+                         )
+        df = df.dropna(subset=['variable', 'ref value'])
+        df.fillna("", inplace=True)
+
+        return df.to_dict(orient='records')
+
+
 class XLRDExcelHandler(ExcelHandler):
     version: int
 
@@ -773,6 +797,10 @@ class ExcelParameterLoader(object):
 
         logger.info(f'Using {excel_handler} excel handler')
         excel_handler_instance = None
+        if excel_handler == 'csv':
+            excel_handler_instance = CSVHandler()
+        if excel_handler == 'pandas':
+            excel_handler_instance = PandasCSVHandler()
         if excel_handler == 'openpyxl':
             excel_handler_instance = OpenpyxlExcelHandler()
         if excel_handler == 'xlsx2csv':
