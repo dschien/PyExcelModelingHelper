@@ -287,9 +287,8 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
         index_names = ['time', 'samples']
         _multi_index = pd.MultiIndex.from_product(iterables, names=index_names)
 
-        df = pd.DataFrame(index=_multi_index, dtype=float)
-        logger.debug(start_date)
-        logger.debug(end_date)
+        # logger.debug(start_date)
+        # logger.debug(end_date)
         from dateutil import relativedelta
         r = relativedelta.relativedelta(end_date, start_date)
         months = r.years * 12 + r.months + 1
@@ -298,14 +297,19 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
         # logger.debug(sigma.size)
         # logger.debug(alpha_sigma.shape)
         # logger.debug(months)
-        df[name] = ((sigma * alpha_sigma) + mu.reshape(months, 1)).ravel()
+        unit_ = kwargs["unit"]
+        if not unit_:
+            unit_ = 'dimensionless'
+
+        series = pd.Series(((sigma * alpha_sigma) + mu.reshape(months, 1)).ravel(), index=_multi_index,
+                           dtype=f'pint[{unit_}]')
 
         ## test if df has sub-zero values
-        df_sigma__dropna = df[name].where(df[name] < 0).dropna()
+        df_sigma__dropna = series.where(series < 0).dropna()
         if not df_sigma__dropna.empty:
             logger.warning(f"Negative values for parameter {name} from {df_sigma__dropna.index[0][0]}")
 
-        return df[name]
+        return series
 
     def generate_mu(self, end_date, ref_date, start_date):
 
@@ -372,15 +376,17 @@ class ConstantUncertaintyExponentialGrowthTimeSeriesGenerator(DistributionFuncti
 
         values *= a.ravel()
 
-        df = pd.DataFrame(values)
-        df.columns = [kwargs['name']]
-        df.set_index(self._multi_index, inplace=True)
-        # @todo this is a hack to return a series with index as I don't know how to set an index and rename a series
-        data_series = df.iloc[:, 0]
-        data_series._metadata = kwargs
-        data_series.index.rename(['time', 'samples'], inplace=True)
+        # df = pd.DataFrame(values)
+        # df.columns = [kwargs['name']]
+        # df.set_index(self._multi_index, inplace=True)
+        # # @todo this is a hack to return a series with index as I don't know how to set an index and rename a series
+        # data_series = df.iloc[:, 0]
+        # data_series._metadata = kwargs
+        # data_series.index.rename(['time', 'samples'], inplace=True)
+        #
+        series = pd.Series(values, index=self._multi_index, dtype=f'pint[{kwargs["unit"]}]')
 
-        return data_series
+        return series
 
 
 def growth_coefficients(start_date, end_date, ref_date, alpha, samples):
