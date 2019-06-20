@@ -1,6 +1,15 @@
 CHANGES
 =======
 
+0.7.0
+-----
+
+* use pint-pandas instead of Quantities
+* new csv importer for Ngmodel server
+* fixed average chart logging improvements
+* added parameter name to 'zero values' warning
+* two new charts: input vars and grid
+
 0.6.8
 -----
 
