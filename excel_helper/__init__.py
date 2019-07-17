@@ -272,8 +272,7 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
 
             variability_ = intial_value * self.kwargs['initial_value_proportional_variation']
             logger.debug(f'sampling random distribution with parameters -{variability_}, 0, {variability_}')
-            sigma = np.random.triangular(-1 * variability_, 0, variability_,
-                                         (len(self.times), self.size))
+            sigma = np.random.triangular(-1 * variability_, 0, variability_,(len(self.times), self.size))
         # logger.debug(ref_date.strftime("%b %d %Y"))
 
         ## 4. Prepare growth array for $\alpha_{sigma}$
