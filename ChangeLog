@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+0.7.1
+-----
+
+* fix: series initialisation from dimensionless variable
+* big refactoring - moved framework files from teapot to ngmodel
+* additional bugfixes after refactoring to pint-pandas
+
 0.7.0
 -----
 
