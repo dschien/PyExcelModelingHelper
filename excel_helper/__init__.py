@@ -383,7 +383,10 @@ class ConstantUncertaintyExponentialGrowthTimeSeriesGenerator(DistributionFuncti
         # data_series._metadata = kwargs
         # data_series.index.rename(['time', 'samples'], inplace=True)
         #
-        series = pd.Series(values, index=self._multi_index, dtype=f'pint[{kwargs["unit"]}]')
+        if not kwargs["unit"]:
+            series = pd.Series(values, index=self._multi_index, dtype='pint[dimensionless]')
+        else:
+            series = pd.Series(values, index=self._multi_index, dtype=f'pint[{kwargs["unit"]}]')
 
         return series
 
