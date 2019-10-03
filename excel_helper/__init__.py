@@ -305,7 +305,7 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
 
         ## test if df has sub-zero values
         df_sigma__dropna = series.where(series < 0).dropna()
-        if not df_sigma__dropna.empty:
+        if not df_sigma__dropna.pint.m.empty:
             logger.warning(f"Negative values for parameter {name} from {df_sigma__dropna.index[0][0]}")
 
         return series
