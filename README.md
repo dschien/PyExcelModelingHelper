@@ -141,3 +141,6 @@ The contents of the rows is also contained in the metadata
 | source |   |
 | comment |   |
 | control |   |
+
+## Versioning
+in a sheet 'metadata' create a pair of cells, one called `version` and the other with the version identifier (e.g `2`) 

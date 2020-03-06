@@ -251,6 +251,8 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
         start_date = self.times[0].to_pydatetime()
         end_date = self.times[-1].to_pydatetime()
         ref_date = self.ref_date
+        if not ref_date:
+            raise Exception(f"Ref date not set for variable {kwargs['name']}")
 
         mu = self.generate_mu(end_date, ref_date, start_date)
 
@@ -272,7 +274,7 @@ class GrowthTimeSeriesGenerator(DistributionFunctionGenerator):
 
             variability_ = intial_value * self.kwargs['initial_value_proportional_variation']
             logger.debug(f'sampling random distribution with parameters -{variability_}, 0, {variability_}')
-            sigma = np.random.triangular(-1 * variability_, 0, variability_,(len(self.times), self.size))
+            sigma = np.random.triangular(-1 * variability_, 0, variability_, (len(self.times), self.size))
         # logger.debug(ref_date.strftime("%b %d %Y"))
 
         ## 4. Prepare growth array for $\alpha_{sigma}$
